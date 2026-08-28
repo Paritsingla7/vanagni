@@ -1,0 +1,36 @@
+# Vanagni: Uttarakhand v1 config. See docs/EXECUTION_PLAN.md Phase 0.2.
+
+region:
+  name: uttarakhand
+  state_id: UK
+  # Padded bounding box (actual state extent: ~28.71N-31.28N, 77.57E-81.03E)
+  bbox:
+    north: 31.5
+    south: 28.6
+    west: 77.5
+    east: 81.1
+
+grid:
+  # 5 km: the finer end of INDIA.md's 5-10km range. ERA5-Land (~10km) is
+  # the coarser input either way, but VIIRS fire detections (375m) and
+  # terrain (slope/aspect matter a lot in this relief) both resolve much
+  # finer than 10km, so 5km keeps those features meaningful.
+  resolution_km: 5
+
+window:
+  start: "2017-01-01"
+  end: "2024-12-31"
+  # FR-5.1: holdout is within-season (train N-1 seasons, test the most
+  # recent), not a random split.
+
+season:
+  # Fire season per INDIA.md 2.2 fact-check: Feb-May state-wide, not a
+  # Uttarakhand-specific window. This is the days-since-onset anchor.
+  dry_season_onset_month: 2
+  dry_season_onset_day: 1
+
+evaluation:
+  # FR-5.2: k = a forest department's plausible daily inspection
+  # capacity. 20 cells/day is a conservative estimate of what a
+  # state-level fire-watch team could physically visit in a day.
+  precision_at_k: 20

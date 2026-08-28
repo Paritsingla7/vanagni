@@ -124,7 +124,9 @@ def load_weather(nc_dir: Path, cell_deg: float = CELL_DEG,
     """
     nc_files = sorted(glob.glob(str(Path(nc_dir) / "**" / "*.nc"), recursive=True))
     if not nc_files:
-        raise FileNotFoundError(f"No NetCDF files under {nc_dir}. Run scripts/download_era5.py first.")
+        raise FileNotFoundError(
+            f"No NetCDF files under {nc_dir}. Run scripts/download_era5.py first."
+        )
     ds = xr.open_mfdataset(nc_files, combine="by_coords", engine="netcdf4")
     ds = ds.rename({"valid_time" if "valid_time" in ds.coords else "time": "time"})
     for extra in ("number", "expver"):
