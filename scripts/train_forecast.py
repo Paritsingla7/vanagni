@@ -21,8 +21,13 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from firepulse import (  # noqa: E402
-    FEATURES, FIRE_FEATS, GEO_FEATS, WX_FEATS,
-    build_dataset, precision_at_k, temporal_split,
+    FEATURES,
+    FIRE_FEATS,
+    GEO_FEATS,
+    WX_FEATS,
+    build_dataset,
+    precision_at_k,
+    temporal_split,
 )
 
 FIRMS_CSV = REPO / "archive" / "fire_archive_M6_156000.csv"
