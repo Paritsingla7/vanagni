@@ -20,6 +20,9 @@ env/
 .DS_Store
 .vscode/
 
+# Claude Code session state
+.claude/
+
 # Data (gitignored: raw/ + processed/, manifest.json per download — see EXECUTION_PLAN.md Phase 0.3)
 data/
 *.nc
