@@ -4,7 +4,6 @@ Chunked by year to keep each CDS request tractable. Each request returns a zip
 wrapping NetCDF; we extract to era5/nc/<chunk>/. Idempotent: skips chunks whose
 extracted marker already exists. Run from the repo root with the project venv.
 """
-import os
 import sys
 import zipfile
 from pathlib import Path
