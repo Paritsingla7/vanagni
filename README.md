@@ -11,9 +11,10 @@ more predictive lift than weather alone?
 
 ## Status
 
-Planning complete, build not yet started. Full spec (requirements,
-architecture, screens, API/data contracts, execution plan) exists as local
-working docs, not published here.
+Phase 0 (scaffolding) done. Phase 1 (ingestion + static layers) in
+progress. Full spec (requirements, architecture, screens, API/data
+contracts, execution plan) exists as local working docs, not published
+here.
 
 ## What's in this repo right now
 
@@ -33,9 +34,15 @@ own structure.
 ## Setup
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate vanagni
+pip install -e .
 ```
+
+`requirements.txt` is kept as a plain-pip fallback, but conda-forge is the
+primary path — several deps here (`rasterio`, `geopandas`) bind to GDAL,
+which conda handles more reliably than pip wheels. Verified installing
+clean under Python 3.12 (3.14 has no prebuilt geospatial wheels yet).
 
 ## Licence
 
