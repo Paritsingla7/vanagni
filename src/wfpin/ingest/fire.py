@@ -5,7 +5,7 @@ writing a manifest (query params, row count, download date) alongside the
 raw file so a re-run skips work already done.
 
 Both VIIRS satellites are pulled and kept distinguishable by the raw
-`satellite` column (`N` = Suomi-NPP, `1` = NOAA-20). SNPP covers the whole
+`satellite` column (`N` = Suomi-NPP, `N20` = NOAA-20). SNPP covers the whole
 window; NOAA-20's standard-processing archive only starts 2018-04-01, so
 mixing them roughly doubles overpass density partway through the window.
 Which constellation the label uses is a panel-time decision (panel.py), not

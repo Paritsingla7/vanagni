@@ -33,10 +33,18 @@ def load_dotenv(path: str = ".env") -> None:
         os.environ.setdefault(key.strip(), value.strip().strip("'\""))
 
 
-def cli_config(description: str) -> dict:
-    """Common `--config` CLI entry for every `python -m wfpin.<step>` script."""
+def cli_args(description: str, add_args=None) -> tuple[dict, argparse.Namespace]:
+    """Common CLI entry for every `python -m wfpin.<step>` script: `--config`
+    plus any step-specific flags `add_args(parser)` registers."""
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--config", default=DEFAULT_CONFIG)
+    if add_args is not None:
+        add_args(parser)
     args = parser.parse_args()
     load_dotenv()
-    return load_config(args.config)
+    return load_config(args.config), args
+
+
+def cli_config(description: str) -> dict:
+    """`cli_args` for steps that take no flags beyond `--config`."""
+    return cli_args(description)[0]
