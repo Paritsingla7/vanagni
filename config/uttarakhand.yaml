@@ -24,10 +24,43 @@ window:
   # recent), not a random split.
 
 season:
-  # Fire season per INDIA.md 2.2 fact-check: Feb-May state-wide, not a
-  # Uttarakhand-specific window. This is the days-since-onset anchor.
-  dry_season_onset_month: 2
-  dry_season_onset_day: 1
+  # FR-2.4: the days-since-onset anchor lives in this per-district table
+  # (single source of truth -- currently a state-wide Feb 15-Jun 15 window
+  # on every row, see docs/RISKS.md §4), joined onto cells by district.
+  calendar_csv: config/fire_calendar_uttarakhand.csv
+
+static_layers:
+  osm:
+    # State-level extract from openstreetmap.fr (~33 MB vs Geofabrik's 335 MB
+    # central-zone file, same data). Clipped at the state border, so roads just
+    # across it (UP/Himachal/Nepal) are absent: distances in border cells are
+    # upper bounds -- a named limitation, not a bug.
+    pbf_url: https://download.openstreetmap.fr/extracts/asia/india/uttarakhand-latest.osm.pbf
+    state_name: Uttarakhand  # admin_level=4 boundary the grid is clipped to
+    district_admin_level: "5"
+    # Roads a person can reach a forest edge by vehicle; footpaths are
+    # excluded because their OSM coverage in the hills is too uneven to be
+    # a consistent feature.
+    road_highway_values: [motorway, motorway_link, trunk, trunk_link, primary, primary_link,
+      secondary, secondary_link, tertiary, tertiary_link, unclassified, residential,
+      living_street, service, track]
+    # Hamlets included: hill settlement is dispersed, city/town/village alone
+    # misses much of where people actually live next to forest.
+    settlement_place_values: [city, town, village, hamlet]
+  worldcover:
+    url_template: https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_{tile}_Map.tif
+    pixel_m: 40  # read from the COG's 40 m overview; 125x125 px per 5 km cell
+    # FR-2.2 fuel-relevant reclass of WorldCover codes. WorldCover has one
+    # "tree cover" class, so pine vs other forest is NOT separable from it
+    # (SCHEMA.md's forest_pine needs an FSI forest-type map instead).
+    classes:
+      forest: [10]
+      shrub_grass: [20, 30]
+      cropland: [40]
+      built_up: [50]
+      other: [60, 70, 80, 90, 95, 100]
+  terrain:
+    pixel_m: 25  # DEM warped to 25 m in UTM; 200x200 px per 5 km cell
 
 evaluation:
   # FR-5.2: k = a forest department's plausible daily inspection
