@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vanagni — next-day forest-fire risk, Uttarakhand</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="topbar">
+    <span class="brand">Vanagni</span>
+    <a href="#map">Risk Map</a>
+    <a href="#ablation">Ablation</a>
+    <a href="#methodology">Methodology</a>
+    <a href="#about">About</a>
+  </nav>
+
+  <main>
+    <!-- 0. About -->
+    <section id="screen-about" class="screen">
+      <h1>Next-day forest-fire risk for Uttarakhand</h1>
+      <p>For every 5&nbsp;km grid cell in Uttarakhand, this model predicts whether a satellite
+        will detect a forest fire there <em>tomorrow</em>, from the cell's fire history, the
+        weather, its fuel and terrain, and how close it is to people — roads, settlements,
+        cropland.</p>
+      <p class="claim">The question it tests: in a fire regime that is 90–95% human-caused, do
+        human-proximity features add more predictive lift than weather? Confirmed or refuted,
+        both are a real result.</p>
+      <div class="cards">
+        <a class="card" href="#map"><strong>See the risk map</strong>
+          <span>Predicted risk for any test-season day, against what actually burned.</span></a>
+        <a class="card" href="#ablation"><strong>See the result</strong>
+          <span>How much each feature family added, with uncertainty.</span></a>
+        <a class="card" href="#methodology"><strong>See the method</strong>
+          <span>Data, label definition, leakage tests, limitations.</span></a>
+      </div>
+    </section>
+
+    <!-- 1. Risk Map -->
+    <section id="screen-map" class="screen" hidden>
+      <div class="controls">
+        <label>Season <select id="season"></select></label>
+        <label>Date <input type="date" id="date"></label>
+        <label class="toggle"><input type="checkbox" id="show-fires">
+          Show actual fires (next day)</label>
+        <span id="map-status" class="status" aria-live="polite"></span>
+      </div>
+      <div id="map"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <!-- 2. Ablation -->
+    <section id="screen-ablation" class="screen" hidden>
+      <h1>Ablation: what each feature family adds</h1>
+      <div id="ablation-body"><p class="status">Loading…</p></div>
+    </section>
+
+    <!-- 3. Methodology -->
+    <section id="screen-methodology" class="screen" hidden>
+      <h1>Methodology</h1>
+      <div id="methodology-body"><p class="status">Loading…</p></div>
+    </section>
+  </main>
+
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

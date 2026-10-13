@@ -1,0 +1,98 @@
+/* Roles, not raw hex: values from the validated reference palette
+   (blue sequential ramp for risk, categorical orange for ground truth). */
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface-1: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --series-1: #2a78d6;
+  --truth: #eb6834;
+  --good: #0ca30c;
+  --critical: #d03b3b;
+  --good-text: #006300;
+  --seq-1: #cde2fb; --seq-2: #9ec5f4; --seq-3: #6da7ec; --seq-4: #3987e5;
+  --seq-5: #256abf; --seq-6: #184f95; --seq-7: #0d366b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5;
+    --truth: #d95926;
+    --good-text: #0ca30c;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--page);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.topbar {
+  display: flex; gap: 1.5rem; align-items: center;
+  padding: 0.75rem 1.5rem; background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .brand { font-weight: 700; margin-right: auto; }
+.topbar a { color: var(--text-secondary); text-decoration: none; }
+.topbar a.active { color: var(--text-primary); font-weight: 600; }
+main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+h2 { font-size: 1.05rem; margin: 2rem 0 0.5rem; }
+.claim { color: var(--text-secondary); border-left: 3px solid var(--series-1); padding-left: 0.75rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.card {
+  display: flex; flex-direction: column; gap: 0.25rem; padding: 1rem;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-primary); text-decoration: none;
+}
+.card span { color: var(--text-secondary); font-size: 0.9rem; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 0.75rem; }
+.controls label { color: var(--text-secondary); font-size: 0.9rem; display: flex; gap: 0.4rem; align-items: center; }
+.status { color: var(--text-muted); font-size: 0.9rem; }
+.status.error { color: var(--critical); }
+#map { height: 600px; border-radius: 8px; border: 1px solid var(--border); }
+.legend { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); }
+.ramp { display: flex; align-items: center; gap: 0.4rem; }
+.ramp .swatches { display: flex; gap: 2px; }
+.ramp .swatches span { width: 22px; height: 12px; border-radius: 2px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--truth); box-shadow: 0 0 0 2px var(--surface-1); display: inline-block; }
+
+table { border-collapse: collapse; width: 100%; background: var(--surface-1); border-radius: 8px; overflow: hidden; }
+th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--grid); }
+th { color: var(--text-secondary); font-weight: 600; font-size: 0.85rem; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ci { color: var(--text-muted); font-size: 0.8rem; }
+.headline { font-size: 1.05rem; margin: 1rem 0; }
+details summary { cursor: pointer; color: var(--text-secondary); font-size: 0.85rem; }
+.skeleton td { color: transparent; background: linear-gradient(90deg, var(--grid), var(--surface-1)); }
+
+.badge { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 600; }
+.badge.pass { color: var(--good-text); }
+.badge.fail { color: var(--critical); }
+.bars svg { width: 100%; max-width: 640px; display: block; }
+.bars text { fill: var(--text-secondary); font-size: 12px; }
+.bars .value { fill: var(--text-primary); }
+.bars rect.bar { fill: var(--series-1); }
+.tooltip {
+  position: fixed; pointer-events: none; z-index: 1000;
+  background: var(--surface-1); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.6rem;
+  font-size: 0.85rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.tooltip strong { display: block; }
