@@ -1,0 +1,76 @@
+"""Phase 4: tie-aware precision@k, paired bootstrap, and an end-to-end
+train -> evaluate run on synthetic data."""
+import numpy as np
+import pandas as pd
+
+from wfpin.config import load_config
+from wfpin.evaluate import (
+    _resampled_day_mean,
+    evaluate,
+    importance_by_family,
+    precision_at_k_by_day,
+    season_scores,
+)
+from wfpin.features import FAMILIES, LABEL
+
+CONFIG = load_config()
+
+
+def _day(scores, labels, day="2024-04-01"):
+    return pd.DataFrame({"cell_id": range(len(scores)), "date": pd.Timestamp(day),
+                         "score": scores, LABEL: labels})
+
+
+def test_precision_at_k_resolves_ties_in_expectation():
+    # Three cells tied at the top for two slots, one of them a fire: 2 * 1/3 / 2.
+    p = precision_at_k_by_day(_day([1, 1, 1, 0], [1, 0, 0, 1]), k=2)
+    assert np.isclose(p.iloc[0], 1 / 3)
+    # No ties: exact.
+    assert precision_at_k_by_day(_day([0.9, 0.8, 0.1, 0.0], [1, 1, 0, 0]), 2).iloc[0] == 1.0
+    assert precision_at_k_by_day(_day([0.0, 0.1, 0.8, 0.9], [1, 1, 0, 0]), 2).iloc[0] == 0.0
+
+
+def test_resampled_day_mean_counts_repeated_days():
+    daily = np.array([0.0, 1.0])
+    day_of_row = np.array([0, 0, 1, 1])
+    assert _resampled_day_mean(daily, day_of_row, np.arange(4)) == 0.5
+    # Day 1 drawn twice, day 0 once -> 2/3.
+    assert np.isclose(_resampled_day_mean(daily, day_of_row, np.array([0, 1, 2, 3, 2, 3])), 2 / 3)
+
+
+def test_identical_stages_have_zero_paired_delta():
+    rng = np.random.default_rng(0)
+    days = pd.date_range("2024-02-15", "2024-06-15")
+    pred = pd.DataFrame([(c, d) for d in days for c in range(30)], columns=["cell_id", "date"])
+    pred["score"] = rng.random(len(pred))
+    pred[LABEL] = rng.random(len(pred)) < 0.05
+    out = season_scores({"a": pred, "b": pred.copy()}, k=5, n_boot=50, block_days=7, rng=rng)
+    assert np.array_equal(out["a"]["_boot_pr_auc"], out["b"]["_boot_pr_auc"])
+    assert np.array_equal(out["a"]["_boot_precision_at_k"], out["b"]["_boot_precision_at_k"])
+
+
+def test_end_to_end_train_then_evaluate(tmp_path):
+    from tests.test_train import _synthetic_panel
+    from wfpin.train import run
+
+    seasons = [2023, 2024]
+    cfg = {**CONFIG, "model": {**CONFIG["model"], "n_estimators": 5},
+           "evaluation": {**CONFIG["evaluation"], "test_seasons": seasons,
+                          "bootstrap_samples": 30, "precision_at_k": 3}}
+    run(cfg, _synthetic_panel(), models_dir=tmp_path / "m", predictions_dir=tmp_path / "p")
+    result = evaluate(cfg, predictions_dir=tmp_path / "p")
+
+    assert [s["stage"] for s in result["stages"]] == list(cfg["ablation"]["stages"])
+    for entry in result["stages"]:
+        assert [r["season"] for r in entry["per_season"]] == seasons
+        for r in entry["per_season"]:
+            assert 0 <= r["pr_auc"] <= 1 and 0 <= r["precision_at_k"] <= 1
+            assert r["pr_auc_ci"][0] <= r["pr_auc_ci"][1]
+            assert r["n_positive"] > 0
+    names = {c["name"] for c in result["comparisons"]}
+    assert {"human_vs_fuel", "cost_of_weather"} <= names
+    for c in result["comparisons"]:
+        assert c["pr_auc_verdict"] in {"no detectable difference", "a better", "b better"}
+
+    shares = importance_by_family("4b", seasons, models_dir=tmp_path / "m")
+    assert set(shares) == set(FAMILIES) and np.isclose(sum(shares.values()), 1)
