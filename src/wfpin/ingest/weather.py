@@ -8,6 +8,7 @@ not UTC day.
 from __future__ import annotations
 
 import calendar
+import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
@@ -32,7 +33,8 @@ VARIABLES = [
     "volumetric_soil_water_layer_1",
 ]
 ALL_HOURS = [f"{h:02d}:00" for h in range(24)]
-CDS_WORKERS = 6  # concurrent monthly requests; CDS queues them per user anyway
+CDS_WORKERS = 4  # concurrent monthly requests; 6 got requests 'rejected' by CDS
+CDS_RETRIES = 5
 
 
 def _month_chunks(start: str, end: str) -> list[tuple[str, str]]:
@@ -50,10 +52,25 @@ def _month_chunks(start: str, end: str) -> list[tuple[str, str]]:
 
 
 def _download_month(year: str, month: str, area: list[float], out: Path) -> None:
+    """One month, retried with backoff. Never raises: CDS rejects or fails
+    individual requests (queue limits, transient errors), and one bad month
+    must not take the other workers down -- download_weather reports any
+    month still missing at the end, and a re-run resumes from the markers."""
+    label = f"{year}-{month}"
+    if (out / f"{label}.done").exists():
+        return
+    for attempt in range(1, CDS_RETRIES + 1):
+        try:
+            _retrieve_month(year, month, area, out)
+            return
+        except Exception as exc:  # noqa: BLE001 -- any CDS failure is retryable here
+            print(f"[{label}] attempt {attempt} failed: {type(exc).__name__}: {exc}", flush=True)
+            time.sleep(120 * attempt)
+
+
+def _retrieve_month(year: str, month: str, area: list[float], out: Path) -> None:
     label = f"{year}-{month}"
     marker = out / f"{label}.done"
-    if marker.exists():
-        return
     n_days = calendar.monthrange(int(year), int(month))[1]
     tmp = out / f"{label}.download"
     print(f"[{label}] requesting...", flush=True)

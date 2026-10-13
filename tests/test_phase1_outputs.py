@@ -51,7 +51,7 @@ def test_weather_daily_dense_and_sane():
 @pytest.mark.skipif(not FIRE.exists(), reason="fire not ingested yet")
 def test_fire_raw_has_both_satellites_and_window():
     f = pd.read_csv(FIRE, usecols=["acq_date", "satellite", "type"])
-    assert set(f["satellite"].astype(str)) == {"N", "1"}
+    assert set(f["satellite"].astype(str)) == {"N", "N20"}
     assert f["acq_date"].min() >= "2017-01-01" and f["acq_date"].max() <= "2024-12-31"
-    noaa20_first = f.loc[f["satellite"].astype(str) == "1", "acq_date"].min()
+    noaa20_first = f.loc[f["satellite"].astype(str) == "N20", "acq_date"].min()
     assert noaa20_first >= "2018-04-01"
