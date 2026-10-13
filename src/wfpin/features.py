@@ -1,7 +1,65 @@
-"""Feature-family builders used by panel.py.
+"""Feature families and the stage -> feature-list mapping for the ablation.
 
-Split out from panel.py so train.py's staged ablation (FR-4.1) can
-include/exclude a family per stage without duplicating join/window logic:
-fire history, weather, human-proximity/fuel/calendar, and the region-
-relative seasonality feature (days-since-dry-season-onset, INDIA.md 2.2).
+A family is a named set of panel columns; a stage (config `ablation.stages`)
+is a list of families. train.py and evaluate.py only ever ask this module
+"which columns does stage X use", so adding, removing, or regrouping a
+family is a one-line change here or in config -- never duplicated logic.
+
+`cell_burn_rate_train` is the one fold-local feature (FR-4.4): it is not a
+panel column, it is derived from a fold's training rows by `add_fold_features`.
 """
+from __future__ import annotations
+
+import pandas as pd
+
+from wfpin.ingest.weather import DAILY_COLUMNS
+
+LABEL = "label_fire_next_day"
+PERSISTENCE = "persistence"
+CELL_BURN_RATE = "cell_burn_rate_train"
+
+FAMILIES: dict[str, list[str]] = {
+    "history": [
+        "fire_count_7d",
+        "fire_count_30d",
+        "days_since_last_fire",
+        "has_fire_history",
+        "neighbor_fire_pressure_7d",
+        "days_since_season_onset",
+        CELL_BURN_RATE,
+    ],
+    "weather": list(DAILY_COLUMNS),
+    "fuel_terrain": [
+        "elevation_m",
+        "slope_deg",
+        "northness",
+        "eastness",
+        "frac_forest",
+        "frac_shrub_grass",
+        "frac_other",
+    ],
+    "human": ["dist_road_m", "dist_settlement_m", "frac_cropland", "frac_built_up"],
+}
+
+
+def stage_features(config: dict, stage: str) -> list[str] | None:
+    """Columns a stage trains on, in family order; None for the persistence rule."""
+    families = config["ablation"]["stages"][stage]
+    if families == PERSISTENCE:
+        return None
+    unknown = set(families) - set(FAMILIES)
+    if unknown:
+        raise KeyError(f"stage {stage!r} names unknown families: {sorted(unknown)}")
+    return [col for fam in families for col in FAMILIES[fam]]
+
+
+def family_of(column: str) -> str:
+    return next(fam for fam, cols in FAMILIES.items() if column in cols)
+
+
+def add_fold_features(train: pd.DataFrame, test: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """FR-4.4: per-cell long-run burn rate from the fold's *training* rows
+    only, attached to both sides. Computed here, never in panel.py, because
+    a rate that saw the test season would leak its label."""
+    rate = train.groupby("cell_id")[LABEL].mean().astype("float32").rename(CELL_BURN_RATE)
+    return train.join(rate, on="cell_id"), test.join(rate, on="cell_id")
