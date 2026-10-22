@@ -1,0 +1,37 @@
+# Vanagni: Odisha config -- the second-region proof. Only region-specific settings live
+# here; everything else comes from defaults.yaml, and data goes to data/odisha/ (no paths
+# block), so nothing of Uttarakhand's can be overwritten.
+#
+# STATUS: static layers only. ERA5 weather, FIRMS ingest and modelling are not run for
+# Odisha: the weather pull alone is a multi-day wait in Copernicus's queue.
+#
+# KNOWN GAP (not solved here): Odisha's fire season is longer than Uttarakhand's. FSI-based
+# alert counts run November-June, with fires already burning in January-February (see
+# fire_calendar_odisha.csv), so the season wraps the new year, which the panel's
+# in_season test (a plain day-of-year range) cannot represent.
+
+region:
+  name: odisha
+  state_id: OD
+  # Spans 81.4-87.5 E: wider than one 6-degree UTM zone, so cell areas under UTM would
+  # vary by up to ~1%. Asia South Albers is equal-area: a projected 5 km cell is exactly
+  # 25 km2 everywhere.
+  crs: ESRI:102028
+  # Padded bounding box (actual state extent: ~17.78N-22.57N, 81.38E-87.53E)
+  bbox:
+    north: 22.7
+    south: 17.7
+    west: 81.3
+    east: 87.6
+
+season:
+  calendar_csv: config/fire_calendar_odisha.csv
+
+weather:
+  # Fire-season months first (see the gap noted above).
+  priority_months: [11, 12, 1, 2, 3, 4, 5, 6]
+
+static_layers:
+  osm:
+    pbf_url: https://download.openstreetmap.fr/extracts/asia/india/odisha-latest.osm.pbf
+    state_name: Odisha  # admin_level=4 boundary the grid is clipped to
