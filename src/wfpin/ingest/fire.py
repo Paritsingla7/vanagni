@@ -27,7 +27,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from wfpin.config import cli_config
+from wfpin.config import cli_config, paths
 
 # Historical/standard-processing VIIRS products (DATA_SOURCES.md #1), with
 # the first day each one has data -- from FIRMS's own /api/data_availability,
@@ -179,13 +179,13 @@ def _load_manual_bulk(config: dict, manual_dir: Path) -> pd.DataFrame | None:
     return df[in_bbox & in_window].reset_index(drop=True)
 
 
-def ingest_fire(config: dict, out_dir: str = "data/raw/fire") -> Path:
+def ingest_fire(config: dict, out_dir: str | Path | None = None) -> Path:
     """FR-1.1: load manually-downloaded bulk CSVs if present, else the looped
     Area API. Writes the combined raw CSV (source columns only, no derived
     fields -- SCHEMA.md §1) + a manifest, gated by a `.done` marker."""
-    out = Path(out_dir)
+    out = Path(out_dir) if out_dir else paths(config).raw / "fire"
     out.mkdir(parents=True, exist_ok=True)
-    combined_path = out / "firms_viirs_uttarakhand.csv"
+    combined_path = out / "firms_viirs.csv"
     manifest_path = out / "manifest.json"
     marker = out / ".done"
 

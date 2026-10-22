@@ -26,12 +26,9 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import average_precision_score
 
-from wfpin.config import cli_args
+from wfpin.config import cli_args, paths
 from wfpin.features import FAMILIES, LABEL, family_of
-from wfpin.static_layers import PROCESSED_DIR, RAW_DIR
-from wfpin.train import MODELS_DIR, PREDICTIONS_DIR
 
-RISK_DIR = PROCESSED_DIR / "risk"
 RISK_STAGE = "4b"  # the map shows the full model (API_CONTRACT.md /api/risk)
 LEAKAGE_TESTS = {
     "temporal_leakage": "tests/test_panel_leakage.py",
@@ -131,9 +128,10 @@ def _public(metrics: dict) -> dict:
 
 
 def evaluate(config: dict, stages: list[str] | None = None, tag: str = "",
-             predictions_dir: Path = PREDICTIONS_DIR, seed: int = 0) -> dict:
+             predictions_dir: Path | None = None, seed: int = 0) -> dict:
     ev = config["evaluation"]
     stages = stages or list(config["ablation"]["stages"])
+    predictions_dir = predictions_dir or paths(config).predictions
     rng = np.random.default_rng(seed)
     per_season = {}
     for season in ev["test_seasons"]:
@@ -195,7 +193,7 @@ def evaluate(config: dict, stages: list[str] | None = None, tag: str = "",
     return {"stages": stage_entries, "comparisons": comparisons}
 
 
-def importance_by_family(stage: str, seasons: list[int], models_dir: Path = MODELS_DIR) -> dict:
+def importance_by_family(stage: str, seasons: list[int], models_dir: Path) -> dict:
     """Share of XGBoost gain per feature family, averaged over folds
     (SCREENS.md §2's optional chart: which *family* earns its keep)."""
     shares = []
@@ -207,9 +205,11 @@ def importance_by_family(stage: str, seasons: list[int], models_dir: Path = MODE
     return pd.concat(shares, axis=1).mean(axis=1).reindex(list(FAMILIES)).fillna(0).to_dict()
 
 
-def build_ablation(config: dict, predictions_dir: Path = PREDICTIONS_DIR,
-                   models_dir: Path = MODELS_DIR) -> dict:
+def build_ablation(config: dict, predictions_dir: Path | None = None,
+                   models_dir: Path | None = None) -> dict:
     ev = config["evaluation"]
+    predictions_dir = predictions_dir or paths(config).predictions
+    models_dir = models_dir or paths(config).models
     result = evaluate(config, predictions_dir=predictions_dir)
     sensitivity = []
     for tag in ev.get("sensitivity_tags", []):
@@ -260,11 +260,12 @@ def run_leakage_tests() -> dict:
 
 
 def build_methodology(config: dict, leakage: dict | None) -> dict:
-    fire = json.loads((RAW_DIR / "fire/manifest.json").read_text())
-    panel = json.loads((PROCESSED_DIR / "panel_manifest.json").read_text())
-    static = pd.read_parquet(PROCESSED_DIR / "static_layers.parquet",
+    p = paths(config)
+    fire = json.loads((p.raw / "fire/manifest.json").read_text())
+    panel = json.loads((p.processed / "panel_manifest.json").read_text())
+    static = pd.read_parquet(p.processed / "static_layers.parquet",
                              columns=["cell_id", "in_state_frac"])
-    weather = PROCESSED_DIR / "weather_daily.parquet"
+    weather = p.processed / "weather_daily.parquet"
     weather_dates = pd.read_parquet(weather, columns=["date"])["date"]
     b = config["region"]["bbox"]
     return {
@@ -304,10 +305,12 @@ def build_methodology(config: dict, leakage: dict | None) -> dict:
     }
 
 
-def write_risk_files(config: dict, predictions_dir: Path = PREDICTIONS_DIR,
-                     out_dir: Path = RISK_DIR) -> int:
+def write_risk_files(config: dict, predictions_dir: Path | None = None,
+                     out_dir: Path | None = None) -> int:
     """FR-7.1: one small JSON per test date ({cell_id: [risk, fire_next_day]})
     plus grid.geojson once; the API joins them per request, no scoring."""
+    predictions_dir = predictions_dir or paths(config).predictions
+    out_dir = out_dir or paths(config).risk
     out_dir.mkdir(parents=True, exist_ok=True)
     n = 0
     cells = set()
@@ -325,7 +328,7 @@ def write_risk_files(config: dict, predictions_dir: Path = PREDICTIONS_DIR,
             n += 1
     # The API's 400 (outside the test window) vs 404 (inside it, file missing).
     (out_dir / "index.json").write_text(json.dumps({"stage": RISK_STAGE, "ranges": ranges}))
-    grid = gpd.read_parquet(PROCESSED_DIR / "grid.geoparquet")
+    grid = gpd.read_parquet(paths(config).processed / "grid.geoparquet")
     grid[grid["cell_id"].isin(cells)].to_file(out_dir / "grid.geojson", driver="GeoJSON")
     return n
 
@@ -338,9 +341,10 @@ def _add_args(parser) -> None:
 if __name__ == "__main__":
     cfg, args = cli_args("FR-5.1-5.5 + FR-7: evaluate all stages, write demo artifacts", _add_args)
     ablation = build_ablation(cfg)
-    (PROCESSED_DIR / "ablation.json").write_text(json.dumps(ablation, indent=2))
+    processed = paths(cfg).processed
+    (processed / "ablation.json").write_text(json.dumps(ablation, indent=2))
     leakage = None if args.skip_tests else run_leakage_tests()
-    (PROCESSED_DIR / "methodology.json").write_text(
+    (processed / "methodology.json").write_text(
         json.dumps(build_methodology(cfg, leakage), indent=2)
     )
     print(f"wrote ablation.json, methodology.json, {write_risk_files(cfg)} risk files", flush=True)

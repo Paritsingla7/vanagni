@@ -30,33 +30,31 @@ from pyproj import Transformer
 from rasterio.warp import Resampling, reproject
 from shapely.geometry import box
 
-from wfpin.config import cli_config
+from wfpin.config import cli_config, paths, region_crs
 
 SRTM_VOID = -32768  # SRTM fill/void sentinel; anything at or below this is missing data
 WORLDCOVER_NODATA = 0
 WORLDCOVER_TILE_DEG = 3
 
-# Uttarakhand sits entirely in UTM zone 44N; projecting here (rather than a
-# raw degree grid) keeps cells genuinely resolution_km x resolution_km --
+# The lattice is built in a projected, metre-based CRS (config `region.crs`, else
+# the UTM zone of the bbox centre) rather than a raw degree grid, which keeps
+# cells genuinely resolution_km x resolution_km --
 # the old US pipeline's audited defect was 0.25-degree cells whose true
 # area varies with latitude.
-UTM_CRS = "EPSG:32644"
 WGS84_CRS = "EPSG:4326"
-
-RAW_DIR = Path("data/raw")
-PROCESSED_DIR = Path("data/processed")
 
 
 @dataclass(frozen=True)
 class Lattice:
-    """The regular resolution_km grid in UTM. Row 0 is the southernmost row;
-    cell_id = row * n_cols + col."""
+    """The regular resolution_km grid in the region's projected CRS. Row 0 is
+    the southernmost row; cell_id = row * n_cols + col."""
 
     west_m: float
     south_m: float
     res_m: float
     n_cols: int
     n_rows: int
+    crs: str
 
     def pixels_per_cell(self, px_m: float) -> int:
         k = self.res_m / px_m
@@ -83,7 +81,8 @@ class Lattice:
 def lattice(config: dict) -> Lattice:
     bbox = config["region"]["bbox"]
     res_m = config["grid"]["resolution_km"] * 1000
-    to_utm = Transformer.from_crs(WGS84_CRS, UTM_CRS, always_xy=True)
+    crs = region_crs(config)
+    to_utm = Transformer.from_crs(WGS84_CRS, crs, always_xy=True)
     west_m, south_m = to_utm.transform(bbox["west"], bbox["south"])
     east_m, north_m = to_utm.transform(bbox["east"], bbox["north"])
     return Lattice(
@@ -92,6 +91,7 @@ def lattice(config: dict) -> Lattice:
         res_m=res_m,
         n_cols=len(np.arange(west_m, east_m, res_m)),
         n_rows=len(np.arange(south_m, north_m, res_m)),
+        crs=crs,
     )
 
 
@@ -102,7 +102,7 @@ def build_grid(config: dict) -> gpd.GeoDataFrame:
     touch the state; cell_ids stay those of the full lattice, so they are
     stable for a given config."""
     lat = lattice(config)
-    to_wgs84 = Transformer.from_crs(UTM_CRS, WGS84_CRS, always_xy=True)
+    to_wgs84 = Transformer.from_crs(lat.crs, WGS84_CRS, always_xy=True)
     rows, cols = np.divmod(np.arange(lat.n_rows * lat.n_cols), lat.n_cols)
     x0 = lat.west_m + cols * lat.res_m
     y0 = lat.south_m + rows * lat.res_m
@@ -117,7 +117,7 @@ def build_grid(config: dict) -> gpd.GeoDataFrame:
             "centroid_lon": lon,
         },
         geometry=[box(x, y, x + lat.res_m, y + lat.res_m) for x, y in zip(x0, y0, strict=True)],
-        crs=UTM_CRS,
+        crs=lat.crs,
     )
 
 
@@ -134,16 +134,17 @@ def clip_grid_to_region(grid: gpd.GeoDataFrame, region: gpd.GeoDataFrame) -> gpd
 # --- FR-2.1 terrain ------------------------------------------------------------------
 
 
-def download_dem(config: dict, out_path: Path = RAW_DIR / "terrain/uttarakhand_dem.tif") -> Path:
+def download_dem(config: dict, out_path: Path | None = None) -> Path:
     """FR-2.1: fetch SRTM 30m DEM for the configured bbox via `elevation`.
 
     `elevation`'s Python API handles SRTM tile discovery/download/mosaic for
-    an arbitrary bbox -- see docs/DATA_SOURCES.md #5. Uttarakhand's bbox
-    needs 20 1x1-degree tiles, above the library's default `max_download_tiles=9`
+    an arbitrary bbox -- see docs/DATA_SOURCES.md #5. A state-sized bbox
+    needs ~20 1x1-degree tiles, above the library's default `max_download_tiles=9`
     safety cap (meant to catch accidental huge/global requests), so it must
     be called through the Python API rather than the `eio` CLI, which has no
     flag to override that cap.
     """
+    out_path = out_path or paths(config).raw / "terrain/dem.tif"
     if out_path.exists():
         return out_path
     import elevation
@@ -179,7 +180,7 @@ def compute_terrain(dem_path: Path, lat: Lattice, px_m: float) -> pd.DataFrame:
             destination=elev,
             src_nodata=src.nodata if src.nodata is not None else SRTM_VOID,
             dst_transform=transform,
-            dst_crs=UTM_CRS,
+            dst_crs=lat.crs,
             dst_nodata=np.nan,
             resampling=Resampling.bilinear,
         )
@@ -216,12 +217,12 @@ def _worldcover_tiles(bbox: dict) -> list[str]:
     return [f"N{la:02d}E{lo:03d}" for la in lats for lo in lons]
 
 
-def warp_worldcover(
-    config: dict, lat: Lattice, out_path: Path = PROCESSED_DIR / "landcover_utm.tif"
-) -> Path:
-    """WorldCover v200 (2021) codes on a lattice-aligned UTM raster, read
-    from the public COGs' overviews (no global tile download). Kept on disk:
-    panel.py needs it to check what land cover each fire detection sits on."""
+def warp_worldcover(config: dict, lat: Lattice, out_path: Path | None = None) -> Path:
+    """WorldCover v200 (2021) codes on a lattice-aligned raster in the region
+    CRS, read from the public COGs' overviews (no global tile download). Kept
+    on disk: panel.py needs it to check what land cover each fire detection
+    sits on."""
+    out_path = out_path or paths(config).processed / "landcover.tif"
     if out_path.exists():
         return out_path
     wc = config["static_layers"]["worldcover"]
@@ -239,7 +240,7 @@ def warp_worldcover(
                 destination=codes,
                 src_nodata=WORLDCOVER_NODATA,
                 dst_transform=transform,
-                dst_crs=UTM_CRS,
+                dst_crs=lat.crs,
                 dst_nodata=WORLDCOVER_NODATA,
                 init_dest_nodata=False,  # later tiles must not blank earlier ones
                 resampling=Resampling.nearest,
@@ -247,7 +248,7 @@ def warp_worldcover(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with rasterio.open(
         out_path, "w", driver="GTiff", height=shape[0], width=shape[1], count=1,
-        dtype="uint8", crs=UTM_CRS, transform=transform, nodata=WORLDCOVER_NODATA,
+        dtype="uint8", crs=lat.crs, transform=transform, nodata=WORLDCOVER_NODATA,
         compress="deflate", tiled=True,
     ) as dst:
         dst.write(codes, 1)
@@ -277,7 +278,8 @@ def compute_landcover(landcover_path: Path, lat: Lattice, classes: dict) -> pd.D
 # --- FR-2.3 human proximity + district boundaries (OSM) ---------------------------------
 
 
-def download_osm(config: dict, out_dir: Path = RAW_DIR / "osm") -> Path:
+def download_osm(config: dict, out_dir: Path | None = None) -> Path:
+    out_dir = out_dir or paths(config).raw / "osm"
     url = config["static_layers"]["osm"]["pbf_url"]
     out = out_dir / url.rsplit("/", 1)[1]
     if out.exists():
@@ -297,10 +299,12 @@ def _in_list(field: str, values: list[str]) -> str:
     return f"{field} IN ({', '.join(repr(v) for v in values)})"
 
 
-def extract_osm(config: dict, pbf: Path, out_dir: Path = RAW_DIR / "osm") -> dict:
+def extract_osm(config: dict, pbf: Path, out_dir: Path | None = None) -> dict:
     """State + district polygons, roads, settlements from the zone extract,
-    clipped to the bbox and cached as GeoPackages in UTM (the pbf scan is the
-    slow part; everything downstream reads the cache)."""
+    clipped to the bbox and cached as GeoPackages in the region CRS (the pbf
+    scan is the slow part; everything downstream reads the cache)."""
+    out_dir = out_dir or paths(config).raw / "osm"
+    crs = region_crs(config)
     osm = config["static_layers"]["osm"]
     b = config["region"]["bbox"]
     bbox = (b["west"], b["south"], b["east"], b["north"])
@@ -319,7 +323,7 @@ def extract_osm(config: dict, pbf: Path, out_dir: Path = RAW_DIR / "osm") -> dic
         if not path.exists():
             print(f"osm: extracting {name} from {pbf.name}", flush=True)
             gdf = pyogrio.read_dataframe(pbf, layer=layer, where=where, bbox=bbox)
-            gdf.to_crs(UTM_CRS).to_file(path, driver="GPKG")
+            gdf.to_crs(crs).to_file(path, driver="GPKG")
         layers[name] = gpd.read_file(path)
     if layers["state"].empty:
         raise RuntimeError(f"No admin_level=4 boundary named {osm['state_name']!r} in {pbf}")
@@ -370,11 +374,12 @@ def join_calendar(static: pd.DataFrame, calendar_csv: str) -> pd.DataFrame:
 # --- Assembly ---------------------------------------------------------------------------
 
 
-def build_static_layers(config: dict, out_dir: Path = PROCESSED_DIR) -> Path:
+def build_static_layers(config: dict, out_dir: Path | None = None) -> Path:
     """FR-2.1-2.5 end to end -> static_layers.parquet (one row per in-state
     cell, no date axis) + grid.geoparquet (cell polygons in WGS84, for
     serving and debug maps)."""
     sl = config["static_layers"]
+    out_dir = out_dir or paths(config).processed
     lat = lattice(config)
 
     osm = extract_osm(config, download_osm(config))

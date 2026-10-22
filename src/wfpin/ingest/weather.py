@@ -20,7 +20,7 @@ import pandas as pd
 import xarray as xr
 from scipy.spatial import cKDTree
 
-from wfpin.config import cli_config
+from wfpin.config import cli_config, paths
 
 IST_OFFSET_H = 5.5  # India is a single fixed UTC+5:30 offset, no DST
 
@@ -116,15 +116,17 @@ def _retrieve_month(year: str, month: str, area: list[float], out: Path) -> None
     print(f"[{label}] done", flush=True)
 
 
-def download_weather(config: dict, out_dir: str = "data/raw/weather") -> Path:
+def download_weather(config: dict, out_dir: str | Path | None = None) -> Path:
     """FR-1.2: chunked, resumable monthly ERA5-Land pull for the configured
     bbox + window, all 24 hourly steps. Idempotent via a `.done` marker per
     month, the resumable pattern carried over from the earlier US prototype.
 
-    Months are requested concurrently: CDS queue time dominates each request,
-    and the link to CDS is throttled per connection, so a serial loop would
-    take most of a day for the full window.
+    Months are requested concurrently: each request waits hours in CDS's
+    queue before a ~9 MB file is produced, so a serial loop would take weeks.
+    CDS caps queued requests per account (and for the whole dataset), hence
+    CDS_WORKERS and the patient retry in `_download_month`.
     """
+    out_dir = out_dir or paths(config).raw / "weather"
     bbox = config["region"]["bbox"]
     area = [bbox["north"], bbox["west"], bbox["south"], bbox["east"]]
     window = config["window"]
@@ -286,13 +288,17 @@ def resample_to_daily(nc_dir: str, grid: pd.DataFrame) -> pd.DataFrame:
 
 def build_weather_daily(
     config: dict,
-    raw_dir: str = "data/raw/weather",
-    static_path: str = "data/processed/static_layers.parquet",
-    out_path: str = "data/processed/weather_daily.parquet",
+    raw_dir: str | Path | None = None,
+    static_path: str | Path | None = None,
+    out_path: str | Path | None = None,
 ) -> Path:
     """FR-1.2 end to end: download (idempotent), then resample onto the grid
     from static_layers.parquet -- the grid is owned by static_layers.py, so
     weather never re-derives it."""
+    p = paths(config)
+    raw_dir = raw_dir or p.raw / "weather"
+    static_path = static_path or p.processed / "static_layers.parquet"
+    out_path = out_path or p.processed / "weather_daily.parquet"
     download_weather(config, raw_dir)
     grid = pd.read_parquet(static_path, columns=["cell_id", "centroid_lat", "centroid_lon"])
     df = resample_to_daily(raw_dir, grid)

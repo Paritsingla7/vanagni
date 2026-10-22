@@ -1,15 +1,16 @@
 """EXECUTION_PLAN Phase 1 done-condition, checked against the real built
 outputs (skipped until they exist): every FR-2.1-2.5 layer keyed by
 cell_id, weather keyed by (cell_id, date), zero null season windows."""
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
-PROCESSED = Path("data/processed")
-STATIC = PROCESSED / "static_layers.parquet"
-WEATHER = PROCESSED / "weather_daily.parquet"
-FIRE = Path("data/raw/fire/firms_viirs_uttarakhand.csv")
+from wfpin.config import load_config, paths
+
+P = paths(load_config())
+STATIC = P.processed / "static_layers.parquet"
+WEATHER = P.processed / "weather_daily.parquet"
+FIRE = P.raw / "fire/firms_viirs.csv"
 
 STATIC_REQUIRED = [
     "cell_id", "grid_row", "grid_col", "in_state_frac", "state_id", "centroid_lat",

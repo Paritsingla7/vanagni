@@ -5,15 +5,15 @@ must be constant across every date for a given cell, and equal to that
 cell's row in static_layers.parquet -- the layers most likely to get
 silently re-joined wrong.
 """
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
+from wfpin.config import load_config, paths
 from wfpin.panel import STATIC_FEATURE_COLUMNS, build_panel
 
-PANEL = Path("data/processed/panel.parquet")
-STATIC = Path("data/processed/static_layers.parquet")
+PANEL = paths(load_config()).processed / "panel.parquet"
+STATIC = paths(load_config()).processed / "static_layers.parquet"
 
 
 def _assert_invariant(panel: pd.DataFrame, static: pd.DataFrame) -> None:
