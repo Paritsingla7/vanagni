@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from wfpin.config import paths
 from wfpin.ingest.weather import (
     _deaccumulate_precip,
     _nearest_valid_points,
@@ -184,13 +185,17 @@ def noon_inputs(ds: xr.Dataset) -> dict[str, xr.DataArray]:
 
 def build_fwi_daily(
     config: dict,
-    raw_dir: str = "data/raw/weather",
-    static_path: str = "data/processed/static_layers.parquet",
-    out_path: str = "data/processed/fwi_daily.parquet",
+    raw_dir: str | Path | None = None,
+    static_path: str | Path | None = None,
+    out_path: str | Path | None = None,
 ) -> Path:
     """FWI System per cell-day -> fwi_daily.parquet (cell_id, date, ffmc, dmc,
     dc, isi, bui, fwi). The index is computed once per ERA5 point and sampled
     onto cells exactly as the weather features are."""
+    p = paths(config)
+    raw_dir = raw_dir or p.raw / "weather"
+    static_path = static_path or p.processed / "static_layers.parquet"
+    out_path = out_path or p.processed / "fwi_daily.parquet"
     ds = _open_hourly(raw_dir)
     inputs = {k: v.load() for k, v in noon_inputs(ds).items()}
     days = pd.date_range(

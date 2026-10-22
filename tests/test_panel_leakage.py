@@ -6,12 +6,12 @@ built from fires truncated at day c must match the full panel on every
 non-label column for every date <= c -- i.e. nothing at date d can depend on
 anything after d. The label is the only column allowed to see d+1.
 """
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from wfpin.config import load_config, paths
 from wfpin.panel import DAYS_SINCE_CAP, build_panel
 
 START, END = "2020-01-01", "2020-03-31"
@@ -140,11 +140,12 @@ def test_weather_joins_same_day_only():
 
 # --- integration: the same truncation property on the real inputs ----------------------
 
+_P = paths(load_config())
 REAL = [
-    Path("data/processed/static_layers.parquet"),
-    Path("data/raw/fire/firms_viirs_uttarakhand.csv"),
-    Path("data/processed/landcover_utm.tif"),
-    Path("data/raw/osm/osm_state.gpkg"),
+    _P.processed / "static_layers.parquet",
+    _P.raw / "fire/firms_viirs.csv",
+    _P.processed / "landcover.tif",
+    _P.raw / "osm/osm_state.gpkg",
 ]
 
 
