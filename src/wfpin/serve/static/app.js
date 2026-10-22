@@ -349,6 +349,12 @@ function familyBars(shares) {
 }
 
 // ---- 3. methodology ---------------------------------------------------------------------
+function gapText(source) {
+  if (!source.gaps || !source.gaps.length) return "";
+  return " (not downloaded: " + source.gaps.map((g) => `${g.start} to ${g.end}`).join("; ") +
+         " — outside every fire season)";
+}
+
 async function initMethodology() {
   const body = $("methodology-body");
   let m;
@@ -357,7 +363,8 @@ async function initMethodology() {
   const src = el("table", {}, el("thead", {}, el("tr", {}, el("th", {}, "Source"),
     el("th", {}, "Window / version"))),
     el("tbody", {}, ...m.data_sources.map((s) => el("tr", {}, el("td", {}, s.name),
-      el("td", {}, s.window ? `${s.window.start} to ${s.window.end}` : (s.version || s.source || ""))))));
+      el("td", {}, s.window ? `${s.window.start} to ${s.window.end}` + gapText(s) :
+                 (s.version || s.source || ""))))));
 
   const tests = Object.entries(m.leakage_tests).map(([name, t]) => {
     const kind = t.status === "pass" ? "pass" : t.status === "fail" ? "fail" : "notrun";

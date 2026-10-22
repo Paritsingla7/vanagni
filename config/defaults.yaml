@@ -12,7 +12,10 @@ grid:
 
 window:
   start: "2017-01-01"
-  end: "2024-12-31"
+  # The last test season (2024) ends with the fire season on Jun 15, so nothing after
+  # Jun 30 can change any result: ending here also spares the ERA5 download six
+  # irrelevant months. (Raw FIRMS data already covers the whole of 2024.)
+  end: "2024-06-30"
   # FR-5.1: temporal, never random -- see evaluation.test_seasons.
 
 label:

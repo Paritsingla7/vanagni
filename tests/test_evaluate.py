@@ -102,3 +102,13 @@ def test_ablation_reports_spatial_holdout_only_when_it_was_run(tmp_path):
     spatial = build_ablation(cfg, predictions_dir=p, models_dir=m)["spatial_holdout"]
     assert spatial["status"] == "ok" and spatial["n_folds"] == 3
     assert {s["stage"] for s in spatial["stages"]} == set(cfg["ablation"]["stages"])
+
+
+def test_date_gaps_reports_missing_runs_between_first_and_last_day():
+    from wfpin.evaluate import date_gaps
+
+    days = list(pd.date_range("2023-11-28", "2023-11-30")) + list(
+        pd.date_range("2023-12-04", "2023-12-05")) + [pd.Timestamp("2023-12-09")]
+    assert date_gaps(pd.Series(days)) == [
+        {"start": "2023-12-01", "end": "2023-12-03"}, {"start": "2023-12-06", "end": "2023-12-08"}]
+    assert date_gaps(pd.Series(pd.date_range("2023-01-01", "2023-01-10"))) == []

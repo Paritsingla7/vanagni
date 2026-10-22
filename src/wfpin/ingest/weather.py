@@ -20,7 +20,7 @@ import pandas as pd
 import xarray as xr
 from scipy.spatial import cKDTree
 
-from wfpin.config import cli_config, paths
+from wfpin.config import cli_args, paths
 
 IST_OFFSET_H = 5.5  # India is a single fixed UTC+5:30 offset, no DST
 
@@ -291,15 +291,19 @@ def build_weather_daily(
     raw_dir: str | Path | None = None,
     static_path: str | Path | None = None,
     out_path: str | Path | None = None,
+    download: bool = True,
 ) -> Path:
     """FR-1.2 end to end: download (idempotent), then resample onto the grid
     from static_layers.parquet -- the grid is owned by static_layers.py, so
-    weather never re-derives it."""
+    weather never re-derives it. `download=False` resamples whatever months
+    are already on disk (days with no data are simply absent, and reported as
+    gaps by evaluate.py) instead of waiting in CDS's queue for the rest."""
     p = paths(config)
     raw_dir = raw_dir or p.raw / "weather"
     static_path = static_path or p.processed / "static_layers.parquet"
     out_path = out_path or p.processed / "weather_daily.parquet"
-    download_weather(config, raw_dir)
+    if download:
+        download_weather(config, raw_dir)
     grid = pd.read_parquet(static_path, columns=["cell_id", "centroid_lat", "centroid_lon"])
     df = resample_to_daily(raw_dir, grid)
     out = Path(out_path)
@@ -309,5 +313,11 @@ def build_weather_daily(
     return out
 
 
+def _add_args(parser) -> None:
+    parser.add_argument("--no-download", action="store_true",
+                        help="resample the months already on disk; do not queue new CDS requests")
+
+
 if __name__ == "__main__":
-    build_weather_daily(cli_config("FR-1.2: ERA5-Land download + daily per-cell resample"))
+    cfg, args = cli_args("FR-1.2: ERA5-Land download + daily per-cell resample", _add_args)
+    build_weather_daily(cfg, download=not args.no_download)

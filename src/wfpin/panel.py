@@ -24,7 +24,7 @@ import rasterio
 from pyproj import Transformer
 from scipy.ndimage import uniform_filter
 
-from wfpin.config import cli_config, paths
+from wfpin.config import cli_args, paths
 from wfpin.ingest.weather import DAILY_COLUMNS as WEATHER_COLUMNS
 from wfpin.static_layers import WGS84_CRS, lattice
 
@@ -305,5 +305,12 @@ def build_panel_from_files(
     return out
 
 
+def _add_args(parser) -> None:
+    parser.add_argument("--min-vegetation-share", type=float,
+                        help="override label.min_vegetation_share (writes panel_veg<N>.parquet); "
+                             "used for the FR-3.5 label-threshold sensitivity runs")
+
+
 if __name__ == "__main__":
-    build_panel_from_files(cli_config("FR-3.1-3.5: build the dense leakage-safe panel"))
+    cfg, args = cli_args("FR-3.1-3.5: build the dense leakage-safe panel", _add_args)
+    build_panel_from_files(cfg, min_vegetation_share=args.min_vegetation_share)
