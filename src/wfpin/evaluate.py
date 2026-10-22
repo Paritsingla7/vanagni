@@ -261,6 +261,19 @@ def run_leakage_tests() -> dict:
     return results
 
 
+def date_gaps(dates: pd.Series) -> list[dict]:
+    """Runs of missing days between the first and last date present."""
+    days = pd.DatetimeIndex(pd.to_datetime(pd.Series(dates).unique())).sort_values()
+    missing = pd.date_range(days.min(), days.max()).difference(days)
+    if missing.empty:
+        return []
+    breaks = np.flatnonzero(np.diff(missing.values) > np.timedelta64(1, "D"))
+    starts = np.concatenate([[0], breaks + 1])
+    ends = np.concatenate([breaks, [len(missing) - 1]])
+    return [{"start": missing[a].date().isoformat(), "end": missing[b].date().isoformat()}
+            for a, b in zip(starts, ends, strict=True)]
+
+
 def build_methodology(config: dict, leakage: dict | None) -> dict:
     p = paths(config)
     fire = json.loads((p.raw / "fire/manifest.json").read_text())
@@ -276,7 +289,8 @@ def build_methodology(config: dict, leakage: dict | None) -> dict:
             {"name": "FIRMS VIIRS (Suomi-NPP, standard processing)", "window": fire["window"],
              "downloaded_at": fire["downloaded_at"], "rows_raw": fire["row_count"]},
             {"name": "ERA5-Land hourly", "window": {"start": str(weather_dates.min()),
-                                                   "end": str(weather_dates.max())}},
+                                                   "end": str(weather_dates.max())},
+             "gaps": date_gaps(weather_dates)},
             {"name": "ESA WorldCover", "version": "v200 (2021)"},
             {"name": "SRTM", "version": "SRTM GL1 (30 m)"},
             {"name": "OpenStreetMap", "source": config["static_layers"]["osm"]["pbf_url"]},
