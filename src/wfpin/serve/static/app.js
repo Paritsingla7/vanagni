@@ -51,12 +51,48 @@ function route() {
     a.classList.toggle("active", a.getAttribute("href") === `#${key}`));
   if (!loaded[key]) {
     loaded[key] = true;
-    ({ map: initMap, ablation: initAblation, methodology: initMethodology }[key] || (() => {}))();
+    ({ about: initAbout, map: initMap, ablation: initAblation,
+       methodology: initMethodology }[key] || (() => {}))();
   } else if (key === "map" && mapState.map) {
     mapState.map.invalidateSize();
   }
 }
 window.addEventListener("hashchange", route);
+
+// ---- 0. about: result at a glance (computed from the real results, never typed in) ------
+const signed = (x) => `${x >= 0 ? "+" : ""}${fmt(x)}`;
+
+async function initAbout() {
+  const box = $("about-glance");
+  let a;
+  try { a = await getJSON("/api/ablation"); } catch (e) {
+    box.replaceChildren(el("p", { class: "status" }, "Results have not been built for this run yet."));
+    return;
+  }
+  const cmp = (name) => a.comparisons.find((c) => c.name === name);
+  const human = cmp("human_vs_fuel"), weather = cmp("weather_lift"), fwi = cmp("full_model_vs_fwi");
+  const tile = (label, c, note) => el("div", { class: "tile" },
+    el("div", { class: "tile-value" }, signed(c.delta_pr_auc)),
+    el("div", { class: "tile-label" }, label),
+    el("div", { class: "ci" }, `95% CI ${ci(c.delta_pr_auc_ci)} · ${note}`));
+  const base = a.stages[0].per_season.reduce((s, r) => s + r.base_rate, 0) / a.stages[0].per_season.length;
+  const h = human.delta_pr_auc, w = weather.delta_pr_auc;
+  const verdict = h <= 0
+    ? "On this backtest, human-proximity features added no predictive lift, so the hypothesis is not supported."
+    : h > w
+      ? `On this backtest the hypothesis is supported: human-proximity features added ${(h / w).toFixed(1)}× the lift weather did.`
+      : `On this backtest the hypothesis is not supported: weather added ${(w / h).toFixed(1)}× more predictive lift than human-proximity features.`;
+  box.replaceChildren(
+    el("div", { class: "glance" },
+      tile("Human-proximity features add", human, "change in PR-AUC"),
+      tile("Weather adds", weather, "change in PR-AUC"),
+      tile("Full model vs the operational Fire Weather Index", fwi, "change in PR-AUC")),
+    el("p", { class: "headline" }, verdict),
+    el("p", { class: "status" },
+      `Test seasons ${a.test_seasons.join(", ")}. On an average in-season day a given cell has a ` +
+      `${(base * 100).toFixed(1)}% chance of a detected fire the next day, so even small ` +
+      "precision gains matter; see the Ablation page for the caveats."));
+}
 
 // ---- 1. risk map -----------------------------------------------------------------------
 const mapState = { map: null, layer: null, fires: null, data: null, ranges: [], req: 0,
