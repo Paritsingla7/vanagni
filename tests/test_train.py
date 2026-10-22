@@ -23,8 +23,13 @@ def test_stage_feature_sets():
     no_weather = set(stage_features(CONFIG, "4b-weather"))
     assert no_weather == s4b - set(FAMILIES["weather"])
     assert CELL_BURN_RATE in set(stage_features(CONFIG, "2"))
-    assert all("fwi" not in (stage_features(CONFIG, s) or []) for s in CONFIG["ablation"]["stages"])
-    assert not any("fwi" in cols for cols in FAMILIES.values())  # baseline, never a feature
+    # The FWI is visible to exactly one learned stage, "3f"; no main family contains it.
+    sees_fwi = {
+        s for s in CONFIG["ablation"]["stages"] if "fwi" in (stage_features(CONFIG, s) or [])
+    }
+    assert sees_fwi == {"3f"}
+    assert [f for f, cols in FAMILIES.items() if "fwi" in cols] == ["fwi_index"]
+    assert set(stage_features(CONFIG, "3f")) - set(stage_features(CONFIG, "2")) == {"fwi"}
     for banned in ("cell_id", "centroid_lat", "centroid_lon", "grid_row", "grid_col"):
         assert banned not in s4b  # never let the model memorise cell identity
 
