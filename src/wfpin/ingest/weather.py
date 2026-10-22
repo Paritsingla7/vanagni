@@ -34,7 +34,11 @@ VARIABLES = [
 ]
 ALL_HOURS = [f"{h:02d}:00" for h in range(24)]
 CDS_WORKERS = 4  # concurrent monthly requests; 6 got requests 'rejected' by CDS
-CDS_RETRIES = 5
+# CDS also rejects requests when the *dataset-wide* queue (all users) is full
+# ("Maximum number queued requests for this dataset has been reached"), which
+# can last hours. Rejections cost nothing, so retry patiently instead of giving up.
+CDS_RETRIES = 60
+CDS_BACKOFF_S = (120, 900)  # first wait, cap
 
 
 def _month_chunks(start: str, end: str) -> list[tuple[str, str]]:
@@ -51,6 +55,16 @@ def _month_chunks(start: str, end: str) -> list[tuple[str, str]]:
     return chunks
 
 
+def prioritise_months(
+    months: list[tuple[str, str]], priority_months: list[int]
+) -> list[tuple[str, str]]:
+    """Months in `priority_months` (calendar months, e.g. the fire season)
+    first, chronological within each group. When CDS's queue is the
+    bottleneck, the months that feed the evaluation should not wait behind
+    off-season ones."""
+    return sorted(months, key=lambda ym: (int(ym[1]) not in priority_months, ym))
+
+
 def _download_month(year: str, month: str, area: list[float], out: Path) -> None:
     """One month, retried with backoff. Never raises: CDS rejects or fails
     individual requests (queue limits, transient errors), and one bad month
@@ -65,7 +79,7 @@ def _download_month(year: str, month: str, area: list[float], out: Path) -> None
             return
         except Exception as exc:  # noqa: BLE001 -- any CDS failure is retryable here
             print(f"[{label}] attempt {attempt} failed: {type(exc).__name__}: {exc}", flush=True)
-            time.sleep(120 * attempt)
+            time.sleep(min(CDS_BACKOFF_S[0] * attempt, CDS_BACKOFF_S[1]))
 
 
 def _retrieve_month(year: str, month: str, area: list[float], out: Path) -> None:
@@ -117,7 +131,10 @@ def download_weather(config: dict, out_dir: str = "data/raw/weather") -> Path:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    months = _month_chunks(window["start"], window["end"])
+    months = prioritise_months(
+        _month_chunks(window["start"], window["end"]),
+        config.get("weather", {}).get("priority_months", []),
+    )
     with ThreadPoolExecutor(max_workers=CDS_WORKERS) as pool:
         list(pool.map(lambda ym: _download_month(*ym, area, out), months))
     missing = [f"{y}-{m}" for y, m in months if not (out / f"{y}-{m}.done").exists()]
