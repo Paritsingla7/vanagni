@@ -24,9 +24,9 @@ import rasterio
 from pyproj import Transformer
 from scipy.ndimage import uniform_filter
 
-from wfpin.config import cli_config
+from wfpin.config import cli_config, paths
 from wfpin.ingest.weather import DAILY_COLUMNS as WEATHER_COLUMNS
-from wfpin.static_layers import PROCESSED_DIR, RAW_DIR, UTM_CRS, WGS84_CRS, lattice
+from wfpin.static_layers import WGS84_CRS, lattice
 
 IST = pd.Timedelta(hours=5, minutes=30)
 DAYS_SINCE_CAP = 365  # SCHEMA.md §4: capped, NaN when the cell has no history at all
@@ -102,11 +102,11 @@ def qualify_detections(
     det = fires[fires["satellite"].astype(str).isin(lab["satellites"])].copy()
     steps["satellite"] = len(det)
 
-    x, y = Transformer.from_crs(WGS84_CRS, UTM_CRS, always_xy=True).transform(
+    x, y = Transformer.from_crs(WGS84_CRS, lat.crs, always_xy=True).transform(
         det["longitude"].to_numpy(), det["latitude"].to_numpy()
     )
     det["x"], det["y"] = x, y
-    inside = gpd.GeoSeries(gpd.points_from_xy(x, y), crs=UTM_CRS).within(state.union_all())
+    inside = gpd.GeoSeries(gpd.points_from_xy(x, y), crs=lat.crs).within(state.union_all())
     det = det[inside.to_numpy()]
     steps["in_state"] = len(det)
 
@@ -258,19 +258,20 @@ def build_panel_from_files(
     """Phase 2 end to end -> panel.parquet + panel_manifest.json. History
     features and neighbour pressure use every in-state cell's fires; only
     the scored population's rows are written."""
-    static = pd.read_parquet(PROCESSED_DIR / "static_layers.parquet")
-    fires = pd.read_csv(RAW_DIR / "fire/firms_viirs_uttarakhand.csv")
-    state = gpd.read_file(RAW_DIR / "osm/osm_state.gpkg")
-    weather = pd.read_parquet(PROCESSED_DIR / "weather_daily.parquet")
+    p = paths(config)
+    static = pd.read_parquet(p.processed / "static_layers.parquet")
+    fires = pd.read_csv(p.raw / "fire/firms_viirs.csv")
+    state = gpd.read_file(p.raw / "osm/osm_state.gpkg")
+    weather = pd.read_parquet(p.processed / "weather_daily.parquet")
     fwi = None
     if any(spec == "fwi" for spec in config["ablation"]["stages"].values()):
-        fwi_path = PROCESSED_DIR / "fwi_daily.parquet"
+        fwi_path = p.processed / "fwi_daily.parquet"
         if not fwi_path.exists():
             raise FileNotFoundError(f"{fwi_path} missing -- run `python -m wfpin.fwi` first")
         fwi = pd.read_parquet(fwi_path, columns=["cell_id", "date", "fwi"])
 
     detections, steps = qualify_detections(
-        fires, static, state, PROCESSED_DIR / "landcover_utm.tif", config, min_vegetation_share
+        fires, static, state, p.processed / "landcover.tif", config, min_vegetation_share
     )
     window = config["window"]
     panel = build_panel(
@@ -282,7 +283,7 @@ def build_panel_from_files(
     default = min_vegetation_share is None
     share = config["label"]["min_vegetation_share"] if default else min_vegetation_share
     name = "panel.parquet" if default else f"panel_veg{round(share * 100)}.parquet"
-    out = out_path or PROCESSED_DIR / name
+    out = out_path or p.processed / name
     out.parent.mkdir(parents=True, exist_ok=True)
     panel.to_parquet(out, index=False)
 

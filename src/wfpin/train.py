@@ -21,7 +21,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 import xgboost as xgb
 
-from wfpin.config import cli_args
+from wfpin.config import cli_args, paths
 from wfpin.features import (
     CELL_BURN_RATE,
     FAMILIES,
@@ -31,10 +31,7 @@ from wfpin.features import (
     rule_column,
     stage_features,
 )
-from wfpin.static_layers import PROCESSED_DIR
 
-MODELS_DIR = PROCESSED_DIR / "models"
-PREDICTIONS_DIR = PROCESSED_DIR / "predictions"
 KEY_COLUMNS = ["cell_id", "date", LABEL, "in_season", "fire_today"]
 
 
@@ -106,13 +103,15 @@ def run(
     panel: pd.DataFrame,
     stages: list[str] | None = None,
     tag: str = "",
-    models_dir: Path = MODELS_DIR,
-    predictions_dir: Path = PREDICTIONS_DIR,
+    models_dir: Path | None = None,
+    predictions_dir: Path | None = None,
     force: bool = False,
 ) -> list[dict]:
     """Train + score every requested stage on every fold. Resumable: a
     stage x fold whose predictions already exist is skipped unless `force`."""
     stages = stages or list(config["ablation"]["stages"])
+    models_dir = models_dir or paths(config).models
+    predictions_dir = predictions_dir or paths(config).predictions
     models_dir.mkdir(parents=True, exist_ok=True)
     predictions_dir.mkdir(parents=True, exist_ok=True)
     log = []
@@ -174,8 +173,8 @@ def run_spatial(
     panel: pd.DataFrame,
     cell_fold: pd.Series,
     stages: list[str] | None = None,
-    models_dir: Path = MODELS_DIR,
-    predictions_dir: Path = PREDICTIONS_DIR,
+    models_dir: Path | None = None,
+    predictions_dir: Path | None = None,
     force: bool = False,
 ) -> list[dict]:
     """Rolling-origin x spatial-block holdout: for each test season and each
@@ -184,6 +183,8 @@ def run_spatial(
     scored once, by a model that never saw its block) are written per
     stage x season under the `_spatial` tag, ready for evaluate.py."""
     stages = stages or list(config["ablation"]["stages"])
+    models_dir = models_dir or paths(config).models
+    predictions_dir = predictions_dir or paths(config).predictions
     models_dir.mkdir(parents=True, exist_ok=True)
     predictions_dir.mkdir(parents=True, exist_ok=True)
     log = []
@@ -236,9 +237,10 @@ def _add_args(parser) -> None:
 
 if __name__ == "__main__":
     cfg, args = cli_args("FR-4.1-4.5: train every ablation stage per fold", _add_args)
-    data = load_panel(PROCESSED_DIR / args.panel)
+    processed = paths(cfg).processed
+    data = load_panel(processed / args.panel)
     if args.spatial:
-        static = pd.read_parquet(PROCESSED_DIR / "static_layers.parquet",
+        static = pd.read_parquet(processed / "static_layers.parquet",
                                  columns=["cell_id", "grid_row", "grid_col"])
         run_spatial(cfg, data, spatial_folds(cfg, static), args.stage, force=args.force)
     else:

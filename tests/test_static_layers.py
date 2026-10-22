@@ -2,11 +2,13 @@
 layer can be silently wrong (a flipped row order or a negated gradient
 produces plausible-looking numbers and no error)."""
 import numpy as np
+import pytest
 import rasterio
 
-from wfpin.static_layers import UTM_CRS, Lattice, build_grid, compute_terrain
+from wfpin.config import paths, region_crs
+from wfpin.static_layers import Lattice, build_grid, compute_terrain, lattice
 
-LAT = Lattice(west_m=300_000, south_m=3_200_000, res_m=5000, n_cols=3, n_rows=2)
+LAT = Lattice(west_m=300_000, south_m=3_200_000, res_m=5000, n_cols=3, n_rows=2, crs="EPSG:32644")
 PX = 500  # 10 px per cell
 
 
@@ -36,7 +38,7 @@ def test_grid_ids_match_lattice_rows():
 def _write_dem(path, elev):
     transform, _ = LAT.raster(PX)
     with rasterio.open(path, "w", driver="GTiff", height=elev.shape[0], width=elev.shape[1],
-                       count=1, dtype="float32", crs=UTM_CRS, transform=transform) as dst:
+                       count=1, dtype="float32", crs=LAT.crs, transform=transform) as dst:
         dst.write(elev, 1)
 
 
@@ -62,3 +64,48 @@ def test_aspect_is_circular_mean(tmp_path):
     t = compute_terrain(tmp_path / "dem.tif", LAT, PX)
     bearing = (t["aspect_deg"] + 180) % 360 - 180  # wrap to [-180, 180)
     assert (bearing.abs() < 20).all(), t["aspect_deg"].tolist()
+
+
+# --- region-agnostic setup: a second region must be a config change only -----------------
+
+ODISHA = {
+    "region": {"name": "odisha", "state_id": "OD",
+               "bbox": {"west": 81.3, "east": 87.6, "south": 17.7, "north": 22.7}},
+    "grid": {"resolution_km": 5},
+}
+ODISHA_ALBERS = {**ODISHA, "region": {**ODISHA["region"], "crs": "ESRI:102028"}}
+
+
+def test_region_crs_defaults_to_the_utm_zone_of_the_bbox_centre():
+    with pytest.warns(UserWarning, match="wider than one UTM zone"):
+        assert region_crs(ODISHA) == "EPSG:32645"  # centre ~84.5 E -> zone 45N
+    uttarakhand = {"region": {"name": "uk", "bbox": {"west": 77.5, "east": 81.1,
+                                                      "south": 28.6, "north": 31.5}}}
+    assert region_crs(uttarakhand) == "EPSG:32644"  # fits in one zone: no warning
+    southern = {"region": {"name": "s", "bbox": {"west": 30, "east": 31, "south": -2, "north": -1}}}
+    assert region_crs(southern) == "EPSG:32736"  # southern hemisphere
+    assert region_crs(ODISHA_ALBERS) == "ESRI:102028"  # an explicit setting wins, silently
+
+
+def test_regions_never_share_data_directories():
+    odisha = paths(ODISHA)
+    assert odisha.raw.parts[-2:] == ("odisha", "raw")
+    assert odisha.processed.parts[-2:] == ("odisha", "processed")
+    pinned = paths({"region": {"name": "uttarakhand"}, "paths": {"raw": "data/raw",
+                                                                    "processed": "data/processed"}})
+    assert str(pinned.raw) == "data/raw"  # an existing layout can be pinned explicitly
+    assert odisha.raw != pinned.raw and odisha.processed != pinned.processed
+
+
+def test_odisha_grid_builds_from_config_alone_with_truly_equal_cell_areas():
+    lat = lattice(ODISHA_ALBERS)
+    assert lat.crs == "ESRI:102028"
+    grid = build_grid(ODISHA_ALBERS)
+    assert grid["state_id"].eq("OD").all()
+    # Equal-area projection: a square projected cell has the same true area
+    # everywhere, unlike a UTM zone far from its central meridian.
+    np.testing.assert_allclose(grid.geometry.area, 25_000_000, rtol=1e-9)
+    # The lattice is the projected rectangle enclosing the bbox, so it must
+    # *cover* the bbox (and may poke slightly past it; the state polygon clips it).
+    assert grid["centroid_lat"].min() < 17.8 and grid["centroid_lat"].max() > 22.6
+    assert grid["centroid_lon"].min() < 81.4 and grid["centroid_lon"].max() > 87.5

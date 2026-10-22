@@ -3,12 +3,21 @@
 region:
   name: uttarakhand
   state_id: UK
+  # Projected CRS for the 5 km lattice (UTM 44N covers the whole state). If
+  # omitted, the UTM zone of the bbox centre is used.
+  crs: EPSG:32644
   # Padded bounding box (actual state extent: ~28.71N-31.28N, 77.57E-81.03E)
   bbox:
     north: 31.5
     south: 28.6
     west: 77.5
     east: 81.1
+
+paths:
+  # Uttarakhand keeps its original data layout. A new region omits this block
+  # and gets data/<region>/raw and data/<region>/processed automatically.
+  raw: data/raw
+  processed: data/processed
 
 grid:
   # 5 km: the finer end of INDIA.md's 5-10km range. ERA5-Land (~10km) is
