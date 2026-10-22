@@ -6,7 +6,14 @@ import pytest
 import rasterio
 
 from wfpin.config import paths, region_crs
-from wfpin.static_layers import Lattice, build_grid, compute_terrain, lattice
+from wfpin.static_layers import (
+    Lattice,
+    build_grid,
+    check_dem_tools,
+    compute_terrain,
+    lattice,
+    srtm_tile_count,
+)
 
 LAT = Lattice(west_m=300_000, south_m=3_200_000, res_m=5000, n_cols=3, n_rows=2, crs="EPSG:32644")
 PX = 500  # 10 px per cell
@@ -109,3 +116,14 @@ def test_odisha_grid_builds_from_config_alone_with_truly_equal_cell_areas():
     # *cover* the bbox (and may poke slightly past it; the state polygon clips it).
     assert grid["centroid_lat"].min() < 17.8 and grid["centroid_lat"].max() > 22.6
     assert grid["centroid_lon"].min() < 81.4 and grid["centroid_lon"].max() > 87.5
+
+
+def test_srtm_tile_count_matches_the_tiles_actually_downloaded_for_uttarakhand():
+    assert srtm_tile_count({"west": 77.5, "east": 81.1, "south": 28.6, "north": 31.5}) == 20
+    assert srtm_tile_count(ODISHA["region"]["bbox"]) == 42  # 81..88 E x 17..23 N
+
+
+def test_missing_gdal_tools_fail_loudly_instead_of_poisoning_the_dem_cache(monkeypatch):
+    monkeypatch.setenv("PATH", "")
+    with pytest.raises(RuntimeError, match="empty tiles"):
+        check_dem_tools()
