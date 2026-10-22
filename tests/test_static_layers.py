@@ -8,6 +8,7 @@ import rasterio
 from wfpin.config import paths, region_crs
 from wfpin.static_layers import (
     Lattice,
+    _tile_is_absent,
     build_grid,
     check_dem_tools,
     compute_terrain,
@@ -127,3 +128,20 @@ def test_missing_gdal_tools_fail_loudly_instead_of_poisoning_the_dem_cache(monke
     monkeypatch.setenv("PATH", "")
     with pytest.raises(RuntimeError, match="empty tiles"):
         check_dem_tools()
+
+
+def test_only_a_confirmed_404_counts_as_an_absent_worldcover_tile(monkeypatch):
+    import requests
+
+    class Resp:
+        def __init__(self, code):
+            self.status_code = code
+
+    monkeypatch.setattr(requests, "head", lambda *a, **k: Resp(404))
+    assert _tile_is_absent("http://x")           # open water: the tile does not exist
+    monkeypatch.setattr(requests, "head", lambda *a, **k: Resp(500))
+    assert not _tile_is_absent("http://x")       # a server error is a real error
+    def boom(*a, **k):
+        raise requests.ConnectionError("down")
+    monkeypatch.setattr(requests, "head", boom)
+    assert not _tile_is_absent("http://x")       # so is a network failure
