@@ -247,6 +247,17 @@ def _worldcover_tiles(bbox: dict) -> list[str]:
     return [f"N{la:02d}E{lo:03d}" for la in lats for lo in lons]
 
 
+def _tile_is_absent(url: str) -> bool:
+    """True only if the server confirms (HTTP 404) that the tile does not exist.
+    WorldCover publishes tiles only where there is land, so an open-water tile
+    (e.g. N15E084 in the Bay of Bengal) is simply missing. Any other failure is a
+    real error and must not be mistaken for "no land here"."""
+    try:
+        return requests.head(url, timeout=30, allow_redirects=True).status_code == 404
+    except requests.RequestException:
+        return False
+
+
 def warp_worldcover(config: dict, lat: Lattice, out_path: Path | None = None) -> Path:
     """WorldCover v200 (2021) codes on a lattice-aligned raster in the region
     CRS, read from the public COGs' overviews (no global tile download). Kept
@@ -264,7 +275,14 @@ def warp_worldcover(config: dict, lat: Lattice, out_path: Path | None = None) ->
         # Overview whose pixel (10 m * 2**(level+1)) is closest to px_m without exceeding it.
         level = max(0, int(math.log2(px_m / 10)) - 1)
         print(f"worldcover {tile} (overview level {level})", flush=True)
-        with rasterio.open(url, overview_level=level) as src:
+        try:
+            src = rasterio.open(url, overview_level=level)
+        except rasterio.errors.RasterioIOError:
+            if not _tile_is_absent(wc["url_template"].format(tile=tile)):
+                raise
+            print(f"worldcover {tile}: no such tile (open water), skipping", flush=True)
+            continue
+        with src:
             reproject(
                 source=rasterio.band(src, 1),
                 destination=codes,
