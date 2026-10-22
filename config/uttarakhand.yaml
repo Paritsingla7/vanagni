@@ -1,4 +1,5 @@
-# Vanagni: Uttarakhand v1 config. See docs/EXECUTION_PLAN.md Phase 0.2.
+# Vanagni: Uttarakhand v1 config (region-specific settings; shared defaults are in
+# defaults.yaml). See docs/EXECUTION_PLAN.md Phase 0.2.
 
 region:
   name: uttarakhand
@@ -19,49 +20,16 @@ paths:
   raw: data/raw
   processed: data/processed
 
-grid:
-  # 5 km: the finer end of INDIA.md's 5-10km range. ERA5-Land (~10km) is
-  # the coarser input either way, but VIIRS fire detections (375m) and
-  # terrain (slope/aspect matter a lot in this relief) both resolve much
-  # finer than 10km, so 5km keeps those features meaningful.
-  resolution_km: 5
-
-window:
-  start: "2017-01-01"
-  end: "2024-12-31"
-  # FR-5.1: temporal, never random -- see evaluation.test_seasons.
-
-label:
-  # Which VIIRS satellite(s) feed the label and the fire-history features.
-  # SNPP only: it covers the whole window, while NOAA-20's archive starts
-  # 2018-04-01 -- mixing them roughly doubles overpass density partway
-  # through, a distortion the model would learn. Raw ingest keeps both.
-  satellites: ["N"]
-  # FR-3.5 qualifying detection (measured on the real SNPP data: these steps
-  # keep ~90% of in-state detections; 94% of what the vegetation step drops
-  # sits on cropland, peaking Oct-Nov and Apr-May residue burning).
-  fire_type: [0]           # FIRMS static-source flag: 0 = presumed vegetation fire
-  confidence: ["n", "h"]   # low-confidence VIIRS points are mostly false alarms
-  vegetation_classes: [forest, shrub_grass]  # names from static_layers.worldcover.classes
-  footprint_px: 9          # 9x9 px of 40 m = 360 m, ~ the VIIRS 375 m pixel
-  min_vegetation_share: 0.5
-  sensitivity_vegetation_shares: [0.3, 0.7]  # Phase 4 robustness runs
-  # Persistent hotspots: a ~375 m spot detected outside the fire season in at
-  # least this many distinct years is a kiln/factory the type flag missed.
-  # Computed only from a reference period that ends before the first test
-  # season -- a mask built from the whole window would let future detections
-  # relabel past ones (leakage).
-  persistent_hotspot_bin_m: 375
-  persistent_hotspot_reference: ["2017-01-01", "2020-12-31"]
-  persistent_hotspot_min_offseason_years: 3
-  # Scored population: a cell needs some fuel to have a forest fire at all.
-  min_cell_vegetation: 0.10
-
 season:
   # FR-2.4: the days-since-onset anchor lives in this per-district table
   # (single source of truth -- currently a state-wide Feb 15-Jun 15 window
   # on every row, see docs/RISKS.md §4), joined onto cells by district.
   calendar_csv: config/fire_calendar_uttarakhand.csv
+
+weather:
+  # Download these calendar months first (the Feb 15 - Jun 15 fire season
+  # feeds training and evaluation; other months only fill the weather file).
+  priority_months: [2, 3, 4, 5, 6]
 
 static_layers:
   osm:
@@ -71,108 +39,3 @@ static_layers:
     # upper bounds -- a named limitation, not a bug.
     pbf_url: https://download.openstreetmap.fr/extracts/asia/india/uttarakhand-latest.osm.pbf
     state_name: Uttarakhand  # admin_level=4 boundary the grid is clipped to
-    district_admin_level: "5"
-    # Roads a person can reach a forest edge by vehicle; footpaths are
-    # excluded because their OSM coverage in the hills is too uneven to be
-    # a consistent feature.
-    road_highway_values: [motorway, motorway_link, trunk, trunk_link, primary, primary_link,
-      secondary, secondary_link, tertiary, tertiary_link, unclassified, residential,
-      living_street, service, track]
-    # Hamlets included: hill settlement is dispersed, city/town/village alone
-    # misses much of where people actually live next to forest.
-    settlement_place_values: [city, town, village, hamlet]
-  worldcover:
-    url_template: https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_{tile}_Map.tif
-    pixel_m: 40  # read from the COG's 40 m overview; 125x125 px per 5 km cell
-    # FR-2.2 fuel-relevant reclass of WorldCover codes. WorldCover has one
-    # "tree cover" class, so pine vs other forest is NOT separable from it
-    # (SCHEMA.md's forest_pine needs an FSI forest-type map instead).
-    classes:
-      forest: [10]
-      shrub_grass: [20, 30]
-      cropland: [40]
-      built_up: [50]
-      other: [60, 70, 80, 90, 95, 100]
-  terrain:
-    pixel_m: 25  # DEM warped to 25 m in UTM; 200x200 px per 5 km cell
-
-evaluation:
-  # FR-5.2: k = a forest department's plausible daily inspection
-  # capacity. 20 cells/day is a conservative estimate of what a
-  # state-level fire-watch team could physically visit in a day.
-  precision_at_k: 20
-  # FR-5.1 (revised): rolling-origin evaluation -- for each test season,
-  # train on every earlier season, test on that one. Four test seasons
-  # instead of one, so a stage's lift has a spread, not a single number.
-  test_seasons: [2021, 2022, 2023, 2024]
-  # FR-5.5: bootstrap CI over the test season, resampling 7-day blocks
-  # (fire days cluster, so resampling single days would understate noise).
-  bootstrap_samples: 1000
-  bootstrap_block_days: 7
-  # Stage-to-stage deltas reported with paired bootstrap CIs (a minus b).
-  # human_vs_fuel is the hypothesis test; cost_of_* is the FR-4.5
-  # order-robustness check ("minus human" is 4a itself).
-  comparisons:
-    - {name: history_vs_persistence, a: "2", b: "1"}
-    - {name: weather_lift, a: "3", b: "2"}
-    - {name: fuel_terrain_lift, a: "4a", b: "3"}
-    - {name: human_vs_fuel, a: "4b", b: "4a"}
-    - {name: cost_of_weather, a: "4b", b: "4b-weather"}
-    # Does a learned model beat the operational fire-danger index?
-    - {name: weather_model_vs_fwi, a: "3", b: "fwi"}
-    - {name: fwi_feature_lift, a: "3f", b: "2"}
-    - {name: raw_weather_vs_fwi_feature, a: "3", b: "3f"}
-    - {name: full_model_vs_fwi, a: "4b", b: "fwi"}
-  # Label-threshold sensitivity (FR-3.5): artifact tags trained by
-  # `python -m wfpin.train --panel panel_veg30.parquet --tag _veg30 --stage 4a --stage 4b`.
-  sensitivity_tags: [_veg30, _veg70]
-  # Spatial-block holdout (train.py --spatial): whole 50 km blocks of cells are
-  # held out, so the model is scored only on places it never trained on.
-  spatial_holdout:
-    block_km: 50
-    n_folds: 5
-    seed: 0
-
-fwi:
-  # Moisture codes reset to the standard startup values each year on this
-  # [month, day] (stand-in for snow-melt on a winter-cold, high-altitude state).
-  restart: [1, 1]
-
-weather:
-  # Download these calendar months first (the Feb 15 - Jun 15 fire season
-  # feeds training and evaluation; other months only fill the weather file).
-  priority_months: [2, 3, 4, 5, 6]
-
-ablation:
-  # FR-4.1 / FR-4.5: stage -> feature families (features.FAMILIES). Stage 1
-  # is the persistence rule. Each stage is trained once per test season.
-  # "4b-weather" is the order-robustness run; "minus human" is 4a itself.
-  stages:
-    "1": persistence
-    # Operational baseline (Canadian FWI System from ERA5-Land noon weather):
-    # a fixed formula, scored through the same path as the learned stages.
-    "fwi": fwi
-    "2": [history]
-    "3": [history, weather]
-    # Same model as stage 3, but with the operational FWI as its only weather
-    # information: does the raw weather add anything beyond the standard index?
-    "3f": [history, fwi_index]
-    "4a": [history, weather, fuel_terrain]
-    "4b": [history, weather, fuel_terrain, human]
-    "4b-weather": [history, fuel_terrain, human]
-  # Train on in-season days only: evaluation scores in-season days, and
-  # off-season rows are ~2/3 of the panel while carrying few fires.
-  train_in_season_only: true
-
-model:
-  # FR-4.2: one fixed XGBoost config for every stage and fold -- no
-  # per-stage tuning, so stage differences come from features, not knobs.
-  # scale_pos_weight is NOT set here: train.py derives it from each fold's
-  # training split.
-  n_estimators: 400
-  max_depth: 6
-  learning_rate: 0.05
-  subsample: 0.8
-  colsample_bytree: 0.8
-  tree_method: hist
-  random_state: 42
