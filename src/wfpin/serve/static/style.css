@@ -66,7 +66,7 @@ h2 { font-size: 1.05rem; margin: 2rem 0 0.5rem; }
 .controls label { color: var(--text-secondary); font-size: 0.9rem; display: flex; gap: 0.4rem; align-items: center; }
 .status { color: var(--text-muted); font-size: 0.9rem; }
 .status.error { color: var(--critical); }
-#map { height: 600px; border-radius: 8px; border: 1px solid var(--border); }
+#map { height: calc(100vh - 210px); min-height: 520px; border-radius: 8px; border: 1px solid var(--border); }
 .legend { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); }
 .ramp { display: flex; align-items: center; gap: 0.4rem; }
 .ramp .swatches { display: flex; gap: 2px; }
@@ -85,6 +85,7 @@ details summary { cursor: pointer; color: var(--text-secondary); font-size: 0.85
 .badge { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 600; }
 .badge.pass { color: var(--good-text); }
 .badge.fail { color: var(--critical); }
+.badge.notrun { color: var(--text-muted); }
 .bars svg { width: 100%; max-width: 640px; display: block; }
 .bars text { fill: var(--text-secondary); font-size: 12px; }
 .bars .value { fill: var(--text-primary); }

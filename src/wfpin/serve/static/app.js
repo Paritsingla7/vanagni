@@ -44,7 +44,7 @@ const SCREENS = { about: "screen-about", map: "screen-map", ablation: "screen-ab
                   methodology: "screen-methodology" };
 const loaded = {};
 function route() {
-  const name = (location.hash || "#about").slice(1);
+  const name = (location.hash || "#about").slice(1).split("?")[0];
   const key = SCREENS[name] ? name : "about";
   for (const [n, id] of Object.entries(SCREENS)) $(id).hidden = n !== key;
   document.querySelectorAll(".topbar a").forEach((a) =>
@@ -59,22 +59,44 @@ function route() {
 window.addEventListener("hashchange", route);
 
 // ---- 1. risk map -----------------------------------------------------------------------
-const mapState = { map: null, layer: null, fires: null, data: null, ranges: [], req: 0 };
+const mapState = { map: null, layer: null, fires: null, data: null, ranges: [], req: 0,
+                   k: 20, fitted: false };
 
-function riskColor(r, max) {
-  const i = Math.min(SEQ.length - 1, Math.floor((r / max) * SEQ.length));
-  return SEQ[Math.max(0, i)];
+const DARK = window.matchMedia("(prefers-color-scheme: dark)").matches;
+// Sequential ramp, one hue. On a dark surface the low end must recede, so it runs reversed.
+const RAMP = DARK ? [...SEQ].reverse() : SEQ;
+const OUTLINE = DARK ? "#f0efec" : "#0b0b0b";
+
+// The models' scores are not calibrated probabilities (class weighting inflates them), so
+// only the ranking is meaningful. Cells are coloured by their rank within the day.
+function rankClass(rank, n, k) {
+  if (rank <= k) return 6;
+  const p = rank / n;
+  return p <= 0.02 ? 5 : p <= 0.05 ? 4 : p <= 0.10 ? 3 : p <= 0.25 ? 2 : p <= 0.50 ? 1 : 0;
 }
+const classLabels = (k) => ["Lower half", "Upper half", "Top 25%", "Top 10%", "Top 5%", "Top 2%",
+                            `Top ${k} cells`];
 
 async function initMap() {
   const status = $("map-status");
   let index;
   try { index = await getJSON("/api/dates"); } catch (e) { showError(status.parentElement, e); return; }
   mapState.ranges = index.ranges;
+  mapState.k = index.k || 20;
 
-  mapState.map = L.map("map").setView([30.1, 79.2], 7);
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    { maxZoom: 12, attribution: "© OpenStreetMap contributors" }).addTo(mapState.map);
+  mapState.map = L.map("map", { zoomSnap: 0.25 }).setView([30.1, 79.2], 7);
+  // A quiet gray basemap (no API key needed) so the data, not the labels, carries the picture;
+  // place names go in a pane above the choropleth so they stay readable.
+  const shade = DARK ? "Dark" : "Light";
+  const esri = (layer) =>
+    `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${layer}/MapServer/tile/{z}/{y}/{x}`;
+  mapState.map.createPane("labels").style.zIndex = 450;
+  mapState.map.getPane("labels").style.pointerEvents = "none";
+  L.tileLayer(esri(`World_${shade}_Gray_Base`), { maxZoom: 12,
+    attribution: "Tiles © Esri — Esri, HERE, Garmin, © OpenStreetMap contributors" })
+    .addTo(mapState.map);
+  L.tileLayer(esri(`World_${shade}_Gray_Reference`), { maxZoom: 12, pane: "labels" })
+    .addTo(mapState.map);
 
   const seasonSel = $("season"), dateInp = $("date");
   for (const r of mapState.ranges) seasonSel.append(el("option", { value: r.season }, String(r.season)));
@@ -88,8 +110,13 @@ async function initMap() {
   seasonSel.addEventListener("change", () => { setRange(); loadDate(); });
   dateInp.addEventListener("change", loadDate);
   $("show-fires").addEventListener("change", draw);
-  seasonSel.value = mapState.ranges[mapState.ranges.length - 1].season;
+  // Shareable deep link, e.g. #map?date=2023-04-12&fires=1
+  const want = new URLSearchParams(location.hash.split("?")[1] || "");
+  const wanted = mapState.ranges.find((r) => want.get("date") >= r.start && want.get("date") <= r.end);
+  seasonSel.value = (wanted || mapState.ranges[mapState.ranges.length - 1]).season;
   setRange();
+  if (wanted) dateInp.value = want.get("date");
+  $("show-fires").checked = want.get("fires") === "1";
   loadDate();
 }
 
@@ -114,21 +141,30 @@ async function loadDate() {
 function draw() {
   const data = mapState.data;
   if (!data) return;
-  const max = Math.max(...data.features.map((f) => f.properties.risk), 1e-6);
+  const k = mapState.k, n = data.features.length;
+  const ranked = [...data.features].sort((a, b) => b.properties.risk - a.properties.risk);
+  const rankOf = new Map(ranked.map((f, i) => [f.properties.cell_id, i + 1]));
   const showFires = $("show-fires").checked;
   if (mapState.layer) mapState.layer.remove();
   if (mapState.fires) mapState.fires.remove();
 
+  const cls = (f) => rankClass(rankOf.get(f.properties.cell_id), n, k);
   mapState.layer = L.geoJSON(data, {
-    style: (f) => ({ fillColor: riskColor(f.properties.risk, max), fillOpacity: 0.75,
-                     weight: 0.3, color: "#898781" }),
+    style: (f) => ({ fillColor: RAMP[cls(f)], fillOpacity: 0.85,
+                     weight: cls(f) === 6 ? 2 : 0.3, color: cls(f) === 6 ? OUTLINE : "#898781" }),
     onEachFeature: (f, layer) => {
       layer.on("mousemove", (e) => showTip(e.originalEvent, `Cell ${f.properties.cell_id}`, [
-        `Predicted risk ${(f.properties.risk * 100).toFixed(1)}%`,
+        `Risk rank ${rankOf.get(f.properties.cell_id)} of ${n} today`,
+        `Score ${f.properties.risk.toFixed(2)} (not a calibrated probability)`,
         `Fire next day: ${f.properties.fire_next_day ? "yes" : "no"}`]));
       layer.on("mouseout", hideTip);
     },
   }).addTo(mapState.map);
+  mapState.layer.eachLayer((l) => { if (cls(l.feature) === 6) l.bringToFront(); });
+  if (!mapState.fitted) {                         // zoom to the state once, then leave the view alone
+    mapState.map.fitBounds(mapState.layer.getBounds(), { padding: [20, 20], animate: false });
+    mapState.fitted = true;
+  }
 
   if (showFires) {
     const burned = data.features.filter((f) => f.properties.fire_next_day);
@@ -140,21 +176,40 @@ function draw() {
                                           fillColor: "#eb6834", fillOpacity: 1 });
     })).addTo(mapState.map);
   }
-  drawLegend(max, showFires, data);
+  drawLegend(showFires, data, rankOf);
 }
 
-function drawLegend(max, showFires, data) {
-  const burned = data.features.filter((f) => f.properties.fire_next_day).length;
+function drawLegend(showFires, data, rankOf) {
+  const k = mapState.k;
+  const burned = data.features.filter((f) => f.properties.fire_next_day);
+  const hits = burned.filter((f) => rankOf.get(f.properties.cell_id) <= k).length;
+  const labels = classLabels(k);
   const swatches = el("span", { class: "swatches" },
-    ...SEQ.map((c) => el("span", { style: `background:${c}` })));
-  const ramp = el("span", { class: "ramp" }, "Low", swatches, `High (${(max * 100).toFixed(0)}%)`);
-  const parts = [ramp, el("span", {}, `${data.features.length} cells · ${burned} burned next day`)];
+    ...RAMP.map((c, i) => el("span", { style: `background:${c}`, title: labels[i] })));
+  const ramp = el("span", { class: "ramp" }, "Lower risk rank", swatches, `Top ${k} cells (outlined)`);
+  const parts = [ramp,
+    el("span", {}, `${data.features.length} cells · ${burned.length} burned next day · ` +
+                    `${hits} of the top ${k} burned`)];
   if (showFires) parts.push(el("span", { class: "ramp" }, el("span", { class: "dot" }),
                                 "Actual fire next day"));
+  parts.push(el("span", { class: "status" },
+    "Colour = rank within the day. Scores are not calibrated probabilities."));
   $("legend").replaceChildren(...parts);
 }
 
 // ---- 2. ablation -------------------------------------------------------------------------
+const COMPARISON_LABELS = {
+  history_vs_persistence: "Does fire history beat the persistence rule?",
+  weather_lift: "What does weather add to fire history?",
+  fuel_terrain_lift: "What do fuel and terrain add?",
+  human_vs_fuel: "What do human-proximity features add? (the hypothesis test)",
+  cost_of_weather: "Cost of removing weather from the full model",
+  weather_model_vs_fwi: "History + weather model vs the operational FWI",
+  full_model_vs_fwi: "Full model vs the operational FWI",
+};
+const VERDICTS = { "a better": "detectable lift", "b better": "detectable drop",
+                   "no detectable difference": "no detectable difference" };
+
 const STAGE_NAMES = { "1": "Persistence", "fwi": "Fire Weather Index (operational baseline)",
                       "2": "+ Fire history", "3": "+ Weather",
                       "4a": "+ Fuel & terrain", "4b": "+ Human proximity",
@@ -198,17 +253,22 @@ async function initAblation() {
         `95% CI ${ci(human.delta_pr_auc_ci)} spans zero).`
       : `Adding human-proximity features changed PR-AUC by ${d >= 0 ? "+" : ""}${fmt(d)} ` +
         `(95% CI ${ci(human.delta_pr_auc_ci)}).`;
-    parts.push(el("p", { class: "headline" }, text));
+    const weather = a.comparisons.find((c) => c.name === "weather_lift");
+    const context = weather ? ` For comparison, adding weather changed it by ` +
+      `${weather.delta_pr_auc >= 0 ? "+" : ""}${fmt(weather.delta_pr_auc)}.` : "";
+    parts.push(el("p", { class: "headline" }, text + context));
   }
 
   const cmpRows = a.comparisons.map((c) => el("tr", {},
-    el("td", {}, c.name.replaceAll("_", " ")),
-    el("td", {}, `${STAGE_NAMES[c.a] || c.a} vs ${STAGE_NAMES[c.b] || c.b}`),
+    el("td", {}, COMPARISON_LABELS[c.name] || c.name.replaceAll("_", " ")),
     el("td", { class: "num" }, `${c.delta_pr_auc >= 0 ? "+" : ""}${fmt(c.delta_pr_auc)}`),
     el("td", { class: "num" }, ci(c.delta_pr_auc_ci)),
-    el("td", {}, c.pr_auc_verdict)));
-  parts.push(el("h2", {}, "Stage-to-stage differences"), el("table", {},
-    el("thead", {}, el("tr", {}, el("th", {}, "Comparison"), el("th", {}, "Stages"),
+    el("td", {}, VERDICTS[c.pr_auc_verdict] || c.pr_auc_verdict)));
+  parts.push(el("h2", {}, "Stage-to-stage differences (change in PR-AUC)"), el("p", { class: "status" },
+    "Intervals capture day-to-day sampling noise within each test season. They do not capture " +
+    "season-to-season variation, which matters with only a few seasons: treat small lifts with caution."),
+    el("table", {},
+    el("thead", {}, el("tr", {}, el("th", {}, "Question"),
       el("th", { class: "num" }, "Δ PR-AUC"), el("th", { class: "num" }, "95% CI"),
       el("th", {}, "Verdict"))), el("tbody", {}, ...cmpRows)));
 
@@ -297,9 +357,9 @@ async function initMethodology() {
       el("td", {}, s.window ? `${s.window.start} to ${s.window.end}` : (s.version || s.source || ""))))));
 
   const tests = Object.entries(m.leakage_tests).map(([name, t]) => {
-    const pass = t.status === "pass";
-    const mark = pass ? "✓ pass" : t.status === "fail" ? "✗ FAIL" : "– not run";
-    return el("p", {}, el("span", { class: `badge ${pass ? "pass" : "fail"}` }, mark), " ",
+    const kind = t.status === "pass" ? "pass" : t.status === "fail" ? "fail" : "notrun";
+    const mark = { pass: "✓ pass", fail: "✗ FAIL", notrun: "– not run" }[kind];
+    return el("p", {}, el("span", { class: `badge ${kind}` }, mark), " ",
       name.replaceAll("_", " "), t.last_run ? ` (last run ${t.last_run})` : "");
   });
 
