@@ -202,7 +202,9 @@ def importance_by_family(stage: str, seasons: list[int], models_dir: Path) -> di
         gain = pd.Series(meta["importance_gain"])
         fam = gain.groupby(gain.index.map(family_of)).sum()
         shares.append(fam / fam.sum())
-    return pd.concat(shares, axis=1).mean(axis=1).reindex(list(FAMILIES)).fillna(0).to_dict()
+    mean = pd.concat(shares, axis=1).mean(axis=1)
+    # Only families this stage's model actually had, in the registry's order.
+    return mean.reindex([f for f in FAMILIES if f in mean.index]).to_dict()
 
 
 def build_ablation(config: dict, predictions_dir: Path | None = None,

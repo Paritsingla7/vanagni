@@ -19,8 +19,9 @@ CELL_BURN_RATE = "cell_burn_rate_train"
 
 # Rule stages have no learned parameters: they score each row by one panel
 # column, and go through exactly the same evaluation path as the models
-# (FR-5.4). They are baselines, never features -- `fwi` is deliberately in no
-# family, so no model can see it.
+# (FR-5.4). `fwi` is deliberately in none of the four main families: only the
+# explicit stage "3f" (history + the FWI as one engineered feature) uses it, via
+# the separate `fwi_index` family, so no other stage's model can see it.
 RULES: dict[str, str] = {"persistence": "fire_today", "fwi": "fwi"}
 
 FAMILIES: dict[str, list[str]] = {
@@ -44,6 +45,10 @@ FAMILIES: dict[str, list[str]] = {
         "frac_other",
     ],
     "human": ["dist_road_m", "dist_settlement_m", "frac_cropland", "frac_built_up"],
+    # The operational fire-danger index as a single engineered feature. Not part
+    # of stage 3: it exists so "3f" can ask whether the model's raw weather
+    # variables add anything beyond the standard index when both feed one model.
+    "fwi_index": ["fwi"],
 }
 
 

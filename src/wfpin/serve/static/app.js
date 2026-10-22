@@ -205,6 +205,8 @@ const COMPARISON_LABELS = {
   human_vs_fuel: "What do human-proximity features add? (the hypothesis test)",
   cost_of_weather: "Cost of removing weather from the full model",
   weather_model_vs_fwi: "History + weather model vs the operational FWI",
+  fwi_feature_lift: "What does the standard FWI add to fire history?",
+  raw_weather_vs_fwi_feature: "Do the raw weather variables beat the FWI inside the same model?",
   full_model_vs_fwi: "Full model vs the operational FWI",
 };
 const VERDICTS = { "a better": "detectable lift", "b better": "detectable drop",
@@ -212,6 +214,7 @@ const VERDICTS = { "a better": "detectable lift", "b better": "detectable drop",
 
 const STAGE_NAMES = { "1": "Persistence", "fwi": "Fire Weather Index (operational baseline)",
                       "2": "+ Fire history", "3": "+ Weather",
+                      "3f": "History + FWI (one index instead of raw weather)",
                       "4a": "+ Fuel & terrain", "4b": "+ Human proximity",
                       "4b-weather": "Full model minus weather" };
 
