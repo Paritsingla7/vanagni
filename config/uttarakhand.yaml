@@ -120,6 +120,8 @@ evaluation:
     - {name: cost_of_weather, a: "4b", b: "4b-weather"}
     # Does a learned model beat the operational fire-danger index?
     - {name: weather_model_vs_fwi, a: "3", b: "fwi"}
+    - {name: fwi_feature_lift, a: "3f", b: "2"}
+    - {name: raw_weather_vs_fwi_feature, a: "3", b: "3f"}
     - {name: full_model_vs_fwi, a: "4b", b: "fwi"}
   # Label-threshold sensitivity (FR-3.5): artifact tags trained by
   # `python -m wfpin.train --panel panel_veg30.parquet --tag _veg30 --stage 4a --stage 4b`.
@@ -152,6 +154,9 @@ ablation:
     "fwi": fwi
     "2": [history]
     "3": [history, weather]
+    # Same model as stage 3, but with the operational FWI as its only weather
+    # information: does the raw weather add anything beyond the standard index?
+    "3f": [history, fwi_index]
     "4a": [history, weather, fuel_terrain]
     "4b": [history, weather, fuel_terrain, human]
     "4b-weather": [history, fuel_terrain, human]

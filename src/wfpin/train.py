@@ -223,7 +223,8 @@ def load_panel(path: Path) -> pd.DataFrame:
     feature_cols = sorted({c for cols in FAMILIES.values() for c in cols} - {CELL_BURN_RATE})
     available = set(pq.read_schema(path).names)
     rule_cols = [c for c in RULES.values() if c in available and c not in KEY_COLUMNS]
-    return pd.read_parquet(path, columns=KEY_COLUMNS + feature_cols + rule_cols)
+    columns = list(dict.fromkeys(KEY_COLUMNS + feature_cols + rule_cols))  # `fwi` is both
+    return pd.read_parquet(path, columns=columns)
 
 
 def _add_args(parser) -> None:

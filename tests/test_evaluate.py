@@ -73,7 +73,8 @@ def test_end_to_end_train_then_evaluate(tmp_path):
         assert c["pr_auc_verdict"] in {"no detectable difference", "a better", "b better"}
 
     shares = importance_by_family("4b", seasons, models_dir=tmp_path / "m")
-    assert set(shares) == set(FAMILIES) and np.isclose(sum(shares.values()), 1)
+    assert set(shares) == set(FAMILIES) - {"fwi_index"}  # stage 4b never sees the FWI feature
+    assert np.isclose(sum(shares.values()), 1)
 
 
 def test_ablation_reports_spatial_holdout_only_when_it_was_run(tmp_path):
