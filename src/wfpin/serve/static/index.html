@@ -24,18 +24,56 @@
       <p>For every 5&nbsp;km grid cell in Uttarakhand, this model predicts whether a satellite
         will detect a forest fire there <em>tomorrow</em>, from the cell's fire history, the
         weather, its fuel and terrain, and how close it is to people — roads, settlements,
-        cropland.</p>
+        cropland. It is a backtest: every prediction is scored against what actually burned.</p>
       <p class="claim">The question it tests: in a fire regime that is 90–95% human-caused, do
         human-proximity features add more predictive lift than weather? Confirmed or refuted,
         both are a real result.</p>
+
+      <h2>Result at a glance</h2>
+      <div id="about-glance"><p class="status">Loading…</p></div>
+
       <div class="cards">
         <a class="card" href="#map"><strong>See the risk map</strong>
-          <span>Predicted risk for any test-season day, against what actually burned.</span></a>
+          <span>Risk rank for any test-season day, against what actually burned.</span></a>
         <a class="card" href="#ablation"><strong>See the result</strong>
           <span>How much each feature family added, with uncertainty.</span></a>
         <a class="card" href="#methodology"><strong>See the method</strong>
           <span>Data, label definition, leakage tests, limitations.</span></a>
       </div>
+
+      <h2>Why this exists</h2>
+      <p>India's Forest Survey runs a satellite alert system that tells state forest departments
+        what is burning <em>now</em>. This asks the next question: which cells are most likely to
+        burn <em>tomorrow</em>, so a limited inspection team can look in the right places first.
+        Everything here is open data, and every claim is checked against the fire that followed,
+        with leakage tests that fail loudly if any feature could see the future.</p>
+
+      <h2>How to read the map</h2>
+      <p>Scores are not calibrated probabilities, so cells are coloured by their <em>rank within
+        the day</em>. The outlined cells are that day's top&nbsp;20, a plausible daily inspection
+        list; the map also reports how many of them burned.</p>
+
+      <h2>Where this goes</h2>
+      <table class="roadmap">
+        <tbody>
+          <tr><td>Built</td><td>Uttarakhand 2017–2024: leakage-safe panel, staged ablation, an
+            operational Fire Weather Index baseline, spatial-block holdout, this demo.</td></tr>
+          <tr><td>Built</td><td>A second state is a config file, not new code: Odisha's grid,
+            terrain, land cover, roads and districts are built by the same pipeline from
+            <code>config/odisha.yaml</code> (its weather and modelling are not run yet).</td></tr>
+          <tr><td>Next</td><td>Odisha weather and modelling (the download is a multi-day wait in
+            Copernicus's queue) — the real test of whether the finding generalises.</td></tr>
+          <tr><td>Next</td><td>Seasons that wrap the new year (Odisha's runs November to June),
+            district-level human-ignition calendars, calibrated probabilities.</td></tr>
+          <tr><td>Later</td><td>Live daily scoring from a weather <em>forecast</em> instead of
+            reanalysis, with a public scorecard of yesterday's hits.</td></tr>
+        </tbody>
+      </table>
+
+      <h2>What this is not</h2>
+      <p>It is not an operational system or a safety tool. It is one state, a handful of seasons,
+        and a research question; small differences between stages should be read with the caveats
+        on the Ablation and Methodology pages.</p>
     </section>
 
     <!-- 1. Risk Map -->
