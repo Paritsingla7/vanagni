@@ -119,7 +119,7 @@ def _retrieve_month(year: str, month: str, area: list[float], out: Path) -> None
 def download_weather(config: dict, out_dir: str = "data/raw/weather") -> Path:
     """FR-1.2: chunked, resumable monthly ERA5-Land pull for the configured
     bbox + window, all 24 hourly steps. Idempotent via a `.done` marker per
-    month, same pattern as the old US project's download_era5.py.
+    month, the resumable pattern carried over from the earlier US prototype.
 
     Months are requested concurrently: CDS queue time dominates each request,
     and the link to CDS is throttled per connection, so a serial loop would
