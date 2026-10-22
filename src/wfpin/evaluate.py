@@ -296,6 +296,8 @@ def build_methodology(config: dict, leakage: dict | None) -> dict:
             "roads built in the window (e.g. the Char Dham highway) are treated as always present.",
             "The OSM extract stops at the state border, so distances in border cells are upper "
             "bounds.",
+            "Model scores are not calibrated probabilities (class weighting inflates them); "
+            "they are meant for ranking cells, which is how precision@k uses them.",
             "WorldCover (2021) has a single tree-cover class: chir pine is not distinguished "
             "from other forest.",
             "The FWI baseline uses the original 46 N day-length tables (no latitude adjustment), "
@@ -327,7 +329,8 @@ def write_risk_files(config: dict, predictions_dir: Path | None = None,
             (out_dir / f"{day.date().isoformat()}.json").write_text(json.dumps(payload))
             n += 1
     # The API's 400 (outside the test window) vs 404 (inside it, file missing).
-    (out_dir / "index.json").write_text(json.dumps({"stage": RISK_STAGE, "ranges": ranges}))
+    (out_dir / "index.json").write_text(json.dumps(
+        {"stage": RISK_STAGE, "k": config["evaluation"]["precision_at_k"], "ranges": ranges}))
     grid = gpd.read_parquet(paths(config).processed / "grid.geoparquet")
     grid[grid["cell_id"].isin(cells)].to_file(out_dir / "grid.geojson", driver="GeoJSON")
     return n
