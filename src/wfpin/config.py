@@ -15,11 +15,55 @@ from pathlib import Path
 import yaml
 
 DEFAULT_CONFIG = "config/uttarakhand.yaml"
+DEFAULTS_FILE = "defaults.yaml"
+
+# What a region file must itself provide. None of these exist in defaults.yaml, so a
+# region that forgets one fails loudly here instead of silently inheriting another
+# region's bbox, projection, calendar or OSM source.
+REQUIRED_REGION_KEYS = (
+    "region.name",
+    "region.state_id",
+    "region.bbox",
+    "season.calendar_csv",
+    "static_layers.osm.pbf_url",
+    "static_layers.osm.state_name",
+)
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """`override` on top of `base`: nested dicts merge key by key; anything
+    else (scalars, lists) is replaced wholesale."""
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _lookup(config: dict, dotted: str):
+    node = config
+    for part in dotted.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return node
 
 
 def load_config(path: str = DEFAULT_CONFIG) -> dict:
-    with open(path) as f:
-        return yaml.safe_load(f)
+    """A region's config: its own file merged over `defaults.yaml` in the same
+    directory (if there is one), then checked for the regional settings no
+    default can supply."""
+    path = Path(path)
+    config = yaml.safe_load(path.read_text())
+    defaults = path.parent / DEFAULTS_FILE
+    if path.name != DEFAULTS_FILE and defaults.exists():
+        config = _deep_merge(yaml.safe_load(defaults.read_text()), config)
+    missing = [key for key in REQUIRED_REGION_KEYS if _lookup(config, key) is None]
+    if missing:
+        raise ValueError(f"{path}: missing required region settings: {missing}")
+    return config
 
 
 @dataclass(frozen=True)

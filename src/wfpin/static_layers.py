@@ -16,6 +16,7 @@ polygon loop, and no way for a pixel to be attributed to the wrong cell.
 from __future__ import annotations
 
 import math
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -134,27 +135,56 @@ def clip_grid_to_region(grid: gpd.GeoDataFrame, region: gpd.GeoDataFrame) -> gpd
 # --- FR-2.1 terrain ------------------------------------------------------------------
 
 
+MAX_SRTM_TILES = 120  # sanity ceiling: a bbox needing more is almost certainly a typo
+# `elevation` shells out to these. If one is missing it does NOT fail: its tile step falls
+# back to `touch`, leaving empty placeholder tiles in ~/.cache/elevation that then poison
+# every later run. So check up front.
+DEM_TOOLS = ("make", "gdal_translate", "gdalbuildvrt")
+
+
+def check_dem_tools() -> None:
+    missing = [tool for tool in DEM_TOOLS if shutil.which(tool) is None]
+    if missing:
+        raise RuntimeError(
+            f"{missing} not on PATH. Activate the conda env (`conda activate vanagni`) before "
+            "downloading the DEM: without them `elevation` silently caches empty tiles."
+        )
+
+
+def srtm_tile_count(bbox: dict) -> int:
+    """SRTM ships as 1x1-degree tiles; how many cover the bbox."""
+    return (math.ceil(bbox["east"]) - math.floor(bbox["west"])) * (
+        math.ceil(bbox["north"]) - math.floor(bbox["south"])
+    )
+
+
 def download_dem(config: dict, out_path: Path | None = None) -> Path:
     """FR-2.1: fetch SRTM 30m DEM for the configured bbox via `elevation`.
 
     `elevation`'s Python API handles SRTM tile discovery/download/mosaic for
     an arbitrary bbox -- see docs/DATA_SOURCES.md #5. A state-sized bbox
-    needs ~20 1x1-degree tiles, above the library's default `max_download_tiles=9`
+    needs 20-40 1x1-degree tiles, above the library's default `max_download_tiles=9`
     safety cap (meant to catch accidental huge/global requests), so it must
     be called through the Python API rather than the `eio` CLI, which has no
-    flag to override that cap.
+    flag to override that cap. The cap is set to exactly the tiles the bbox needs.
     """
     out_path = out_path or paths(config).raw / "terrain/dem.tif"
     if out_path.exists():
         return out_path
     import elevation
 
+    check_dem_tools()
     bbox = config["region"]["bbox"]
+    tiles = srtm_tile_count(bbox)
+    if tiles > MAX_SRTM_TILES:
+        raise ValueError(
+            f"bbox needs {tiles} SRTM tiles (limit {MAX_SRTM_TILES}): check region.bbox"
+        )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     elevation.clip(
         bounds=(bbox["west"], bbox["south"], bbox["east"], bbox["north"]),
         output=str(out_path.resolve()),
-        max_download_tiles=30,
+        max_download_tiles=tiles,
     )
     return out_path
 
