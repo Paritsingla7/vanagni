@@ -77,6 +77,8 @@ async function initAbout() {
     el("div", { class: "ci" }, `95% CI ${ci(c.delta_pr_auc_ci)} · ${note}`));
   const base = a.stages[0].per_season.reduce((s, r) => s + r.base_rate, 0) / a.stages[0].per_season.length;
   const h = human.delta_pr_auc, w = weather.delta_pr_auc;
+  const seasons = Object.values(human.delta_pr_auc_per_season);
+  const upSeasons = seasons.filter((x) => x > 0).length;
   const verdict = h <= 0
     ? "On this backtest, human-proximity features added no predictive lift, so the hypothesis is not supported."
     : h > w
@@ -84,7 +86,8 @@ async function initAbout() {
       : `On this backtest the hypothesis is not supported: weather added ${(w / h).toFixed(1)}× more predictive lift than human-proximity features.`;
   box.replaceChildren(
     el("div", { class: "glance" },
-      tile("Human-proximity features add", human, "change in PR-AUC"),
+      tile("Human-proximity features add", human,
+           `positive in ${upSeasons} of ${seasons.length} seasons`),
       tile("Weather adds", weather, "change in PR-AUC"),
       tile("Full model vs the operational Fire Weather Index", fwi, "change in PR-AUC")),
     el("p", { class: "headline" }, verdict),
@@ -293,8 +296,11 @@ async function initAblation() {
       : `Adding human-proximity features changed PR-AUC by ${d >= 0 ? "+" : ""}${fmt(d)} ` +
         `(95% CI ${ci(human.delta_pr_auc_ci)}).`;
     const weather = a.comparisons.find((c) => c.name === "weather_lift");
-    const context = weather ? ` For comparison, adding weather changed it by ` +
-      `${weather.delta_pr_auc >= 0 ? "+" : ""}${fmt(weather.delta_pr_auc)}.` : "";
+    const perSeason = Object.values(human.delta_pr_auc_per_season);
+    const positive = perSeason.filter((x) => x > 0).length;
+    const context = (weather ? ` For comparison, adding weather changed it by ` +
+      `${weather.delta_pr_auc >= 0 ? "+" : ""}${fmt(weather.delta_pr_auc)}.` : "") +
+      ` The human-proximity change was positive in ${positive} of ${perSeason.length} test seasons.`;
     parts.push(el("p", { class: "headline" }, text + context));
   }
 
