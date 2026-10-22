@@ -155,7 +155,8 @@ function drawLegend(max, showFires, data) {
 }
 
 // ---- 2. ablation -------------------------------------------------------------------------
-const STAGE_NAMES = { "1": "Persistence", "2": "+ Fire history", "3": "+ Weather",
+const STAGE_NAMES = { "1": "Persistence", "fwi": "Fire Weather Index (operational baseline)",
+                      "2": "+ Fire history", "3": "+ Weather",
                       "4a": "+ Fuel & terrain", "4b": "+ Human proximity",
                       "4b-weather": "Full model minus weather" };
 
@@ -214,6 +215,8 @@ async function initAblation() {
   parts.push(el("h2", {}, "Which family the full model leans on (share of gain)"),
              familyBars(a.importance_by_family));
 
+  parts.push(...spatialSection(a));
+
   const sens = (a.sensitivity || []).filter((s) => s.status === "ok");
   if (sens.length) {
     parts.push(el("h2", {}, "Robustness to the vegetation threshold"),
@@ -222,6 +225,34 @@ async function initAblation() {
         `(${ci(s.delta_pr_auc_ci)})`).join("  ·  ")));
   }
   body.replaceChildren(...parts);
+}
+
+function spatialSection(a) {
+  const sp = a.spatial_holdout || { status: "not_run" };
+  const title = el("h2", {}, "Does it work on places it never trained on?");
+  if (sp.status !== "ok") {
+    return [title, el("p", { class: "status" },
+      "Spatial-holdout evaluation has not been run for this build.")];
+  }
+  const intro = el("p", { class: "status" },
+    `Whole ${sp.block_km} km blocks of cells (${sp.n_folds} folds) are held out, so each cell is ` +
+    "scored by a model that never saw its neighbourhood, and its own burn history is unavailable.");
+  const rows = sp.stages.map((s) => el("tr", {},
+    el("td", {}, STAGE_NAMES[s.stage] || s.stage),
+    el("td", { class: "num" }, fmt(s.mean.pr_auc), el("div", { class: "ci" }, ci(s.mean.pr_auc_ci))),
+    el("td", { class: "num" }, fmt(s.mean.precision_at_k))));
+  const table = el("table", {},
+    el("thead", {}, el("tr", {}, el("th", {}, "Stage"), el("th", { class: "num" }, "PR-AUC (95% CI)"),
+      el("th", { class: "num" }, `Precision@${a.k}`))), el("tbody", {}, ...rows));
+  const human = sp.comparisons.find((c) => c.name === "human_vs_fuel");
+  const out = [title, intro, table];
+  if (human) {
+    out.push(el("p", { class: "headline" },
+      `On unseen places, adding human-proximity features changes PR-AUC by ` +
+      `${human.delta_pr_auc >= 0 ? "+" : ""}${fmt(human.delta_pr_auc)} ` +
+      `(95% CI ${ci(human.delta_pr_auc_ci)}).`));
+  }
+  return out;
 }
 
 function familyBars(shares) {
