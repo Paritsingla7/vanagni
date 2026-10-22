@@ -6,17 +6,18 @@ endpoint reads a file the offline pipeline already wrote -- nothing here
 trains, scores, or writes (ARCHITECTURE.md §2). A missing file is a
 build-not-run error and the response says so.
 
-    python -m wfpin.serve.api [--port 5000] [--data-dir data/processed]
+    python -m wfpin.serve.api [--config config/uttarakhand.yaml] [--port 5000]
 """
 from __future__ import annotations
 
-import argparse
 import json
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
+
+from wfpin.config import cli_args, paths
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -25,7 +26,7 @@ def _error(status: int, code: str, message: str):
     return jsonify({"error": code, "message": message}), status
 
 
-def create_app(data_dir: Path = Path("data/processed")) -> Flask:
+def create_app(data_dir: Path) -> Flask:
     app = Flask(__name__, static_folder=None)
     risk_dir = data_dir / "risk"
 
@@ -95,9 +96,12 @@ def create_app(data_dir: Path = Path("data/processed")) -> Flask:
     return app
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Vanagni demo server (read-only)")
+def _add_args(parser) -> None:
     parser.add_argument("--port", type=int, default=5000)
-    parser.add_argument("--data-dir", default="data/processed")
-    args = parser.parse_args()
-    create_app(Path(args.data_dir)).run(port=args.port, debug=False)  # AUDIT.md: never debug=True
+    parser.add_argument("--data-dir", help="override the config's processed-data directory")
+
+
+if __name__ == "__main__":
+    cfg, args = cli_args("Vanagni demo server (read-only)", _add_args)
+    data = Path(args.data_dir) if args.data_dir else paths(cfg).processed
+    create_app(data).run(port=args.port, debug=False)  # AUDIT.md: never debug=True
