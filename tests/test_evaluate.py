@@ -74,3 +74,25 @@ def test_end_to_end_train_then_evaluate(tmp_path):
 
     shares = importance_by_family("4b", seasons, models_dir=tmp_path / "m")
     assert set(shares) == set(FAMILIES) and np.isclose(sum(shares.values()), 1)
+
+
+def test_ablation_reports_spatial_holdout_only_when_it_was_run(tmp_path):
+    from tests.test_train import _synthetic_panel
+    from wfpin.evaluate import build_ablation
+    from wfpin.train import run, run_spatial
+
+    cfg = {**CONFIG, "model": {**CONFIG["model"], "n_estimators": 3},
+           "evaluation": {**CONFIG["evaluation"], "test_seasons": [2023, 2024],
+                          "bootstrap_samples": 20, "precision_at_k": 3,
+                          "spatial_holdout": {"block_km": 5, "n_folds": 3, "seed": 0}}}
+    panel, m, p = _synthetic_panel(), tmp_path / "m", tmp_path / "p"
+    run(cfg, panel, models_dir=m, predictions_dir=p)
+
+    assert build_ablation(cfg, predictions_dir=p, models_dir=m)["spatial_holdout"] == {
+        "status": "not_run"}
+
+    run_spatial(cfg, panel, pd.Series([0, 1, 2, 0, 1, 2, 0, 1, 2], index=np.arange(9)),
+                models_dir=m, predictions_dir=p)
+    spatial = build_ablation(cfg, predictions_dir=p, models_dir=m)["spatial_holdout"]
+    assert spatial["status"] == "ok" and spatial["n_folds"] == 3
+    assert {s["stage"] for s in spatial["stages"]} == set(cfg["ablation"]["stages"])

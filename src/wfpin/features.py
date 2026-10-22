@@ -15,8 +15,13 @@ import pandas as pd
 from wfpin.ingest.weather import DAILY_COLUMNS
 
 LABEL = "label_fire_next_day"
-PERSISTENCE = "persistence"
 CELL_BURN_RATE = "cell_burn_rate_train"
+
+# Rule stages have no learned parameters: they score each row by one panel
+# column, and go through exactly the same evaluation path as the models
+# (FR-5.4). They are baselines, never features -- `fwi` is deliberately in no
+# family, so no model can see it.
+RULES: dict[str, str] = {"persistence": "fire_today", "fwi": "fwi"}
 
 FAMILIES: dict[str, list[str]] = {
     "history": [
@@ -42,10 +47,18 @@ FAMILIES: dict[str, list[str]] = {
 }
 
 
+def rule_column(config: dict, stage: str) -> str | None:
+    """The panel column a rule stage scores by; None for a learned stage."""
+    spec = config["ablation"]["stages"][stage]
+    return RULES[spec] if isinstance(spec, str) else None
+
+
 def stage_features(config: dict, stage: str) -> list[str] | None:
-    """Columns a stage trains on, in family order; None for the persistence rule."""
+    """Columns a stage trains on, in family order; None for a rule stage."""
     families = config["ablation"]["stages"][stage]
-    if families == PERSISTENCE:
+    if isinstance(families, str):
+        if families not in RULES:
+            raise KeyError(f"stage {stage!r}: unknown rule {families!r}; known: {sorted(RULES)}")
         return None
     unknown = set(families) - set(FAMILIES)
     if unknown:

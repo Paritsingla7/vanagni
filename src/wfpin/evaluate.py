@@ -221,6 +221,13 @@ def build_ablation(config: dict, predictions_dir: Path = PREDICTIONS_DIR,
         comp = next(c for c in sens["comparisons"] if c["name"] == "human_vs_fuel")
         sensitivity.append({"tag": tag, "status": "ok",
                             **{k: v for k, v in comp.items() if k.startswith("delta_")}})
+    spatial = {"status": "not_run"}
+    try:
+        spatial = {"status": "ok", "block_km": ev["spatial_holdout"]["block_km"],
+                   "n_folds": ev["spatial_holdout"]["n_folds"],
+                   **evaluate(config, tag="_spatial", predictions_dir=predictions_dir)}
+    except FileNotFoundError:
+        pass  # `python -m wfpin.train --spatial` hasn't been run: say so, don't fake it
     return {
         "generated_at": date.today().isoformat(),
         "k": ev["precision_at_k"],
@@ -230,6 +237,7 @@ def build_ablation(config: dict, predictions_dir: Path = PREDICTIONS_DIR,
         **result,
         "importance_by_family": importance_by_family(RISK_STAGE, ev["test_seasons"], models_dir),
         "sensitivity": sensitivity,
+        "spatial_holdout": spatial,
     }
 
 
@@ -287,6 +295,9 @@ def build_methodology(config: dict, leakage: dict | None) -> dict:
             "bounds.",
             "WorldCover (2021) has a single tree-cover class: chir pine is not distinguished "
             "from other forest.",
+            "The FWI baseline uses the original 46 N day-length tables (no latitude adjustment), "
+            "local-noon ERA5-Land values (mean of the 11:30 and 12:30 IST hours) and an annual "
+            "January 1 restart of its moisture codes; an operational system would tune these.",
         ],
     }
 

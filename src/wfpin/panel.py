@@ -177,11 +177,13 @@ def build_panel(
     start: str,
     end: str,
     weather: pd.DataFrame | None = None,
+    fwi: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Dense cell x day panel over every cell in `static` and every day in
     [start, end]. `fire_daily` holds (cell_id, date) fire days; only those
     feed history features and the label. `weather` (cell_id, date, ...) is
-    left-joined as-of `date` only."""
+    left-joined as-of `date` only. `fwi` (cell_id, date, fwi) is the
+    operational-index baseline: one same-day column, in no model's features."""
     static = static.sort_values("cell_id").reset_index(drop=True)
     days = pd.date_range(start, end, freq="D")
     n_cells, n_days = len(static), len(days)
@@ -235,6 +237,9 @@ def build_panel(
         w = weather.assign(date=pd.to_datetime(weather["date"]))
         panel = panel.merge(w[["cell_id", "date", *WEATHER_COLUMNS]], on=["cell_id", "date"],
                             how="left", validate="one_to_one")
+    if fwi is not None:
+        f = fwi[["cell_id", "date", "fwi"]].assign(date=pd.to_datetime(fwi["date"]))
+        panel = panel.merge(f, on=["cell_id", "date"], how="left", validate="one_to_one")
     return panel
 
 
@@ -257,12 +262,20 @@ def build_panel_from_files(
     fires = pd.read_csv(RAW_DIR / "fire/firms_viirs_uttarakhand.csv")
     state = gpd.read_file(RAW_DIR / "osm/osm_state.gpkg")
     weather = pd.read_parquet(PROCESSED_DIR / "weather_daily.parquet")
+    fwi = None
+    if any(spec == "fwi" for spec in config["ablation"]["stages"].values()):
+        fwi_path = PROCESSED_DIR / "fwi_daily.parquet"
+        if not fwi_path.exists():
+            raise FileNotFoundError(f"{fwi_path} missing -- run `python -m wfpin.fwi` first")
+        fwi = pd.read_parquet(fwi_path, columns=["cell_id", "date", "fwi"])
 
     detections, steps = qualify_detections(
         fires, static, state, PROCESSED_DIR / "landcover_utm.tif", config, min_vegetation_share
     )
     window = config["window"]
-    panel = build_panel(static, fire_days(detections), window["start"], window["end"], weather)
+    panel = build_panel(
+        static, fire_days(detections), window["start"], window["end"], weather, fwi
+    )
     population = scored_cells(static, config)["cell_id"]
     panel = panel[panel["cell_id"].isin(population)].reset_index(drop=True)
 
