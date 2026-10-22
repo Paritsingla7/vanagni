@@ -97,3 +97,10 @@ details summary { cursor: pointer; color: var(--text-secondary); font-size: 0.85
   font-size: 0.85rem; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 .tooltip strong { display: block; }
+
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.tile-value { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+.tile-label { color: var(--text-secondary); margin: 0.25rem 0; }
+.roadmap td:first-child { color: var(--text-muted); width: 5.5rem; font-weight: 600; }
+code { background: var(--surface-1); border: 1px solid var(--border); border-radius: 4px; padding: 0 0.3em; }
