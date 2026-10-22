@@ -109,9 +109,28 @@ evaluation:
     - {name: fuel_terrain_lift, a: "4a", b: "3"}
     - {name: human_vs_fuel, a: "4b", b: "4a"}
     - {name: cost_of_weather, a: "4b", b: "4b-weather"}
+    # Does a learned model beat the operational fire-danger index?
+    - {name: weather_model_vs_fwi, a: "3", b: "fwi"}
+    - {name: full_model_vs_fwi, a: "4b", b: "fwi"}
   # Label-threshold sensitivity (FR-3.5): artifact tags trained by
   # `python -m wfpin.train --panel panel_veg30.parquet --tag _veg30 --stage 4a --stage 4b`.
   sensitivity_tags: [_veg30, _veg70]
+  # Spatial-block holdout (train.py --spatial): whole 50 km blocks of cells are
+  # held out, so the model is scored only on places it never trained on.
+  spatial_holdout:
+    block_km: 50
+    n_folds: 5
+    seed: 0
+
+fwi:
+  # Moisture codes reset to the standard startup values each year on this
+  # [month, day] (stand-in for snow-melt on a winter-cold, high-altitude state).
+  restart: [1, 1]
+
+weather:
+  # Download these calendar months first (the Feb 15 - Jun 15 fire season
+  # feeds training and evaluation; other months only fill the weather file).
+  priority_months: [2, 3, 4, 5, 6]
 
 ablation:
   # FR-4.1 / FR-4.5: stage -> feature families (features.FAMILIES). Stage 1
@@ -119,6 +138,9 @@ ablation:
   # "4b-weather" is the order-robustness run; "minus human" is 4a itself.
   stages:
     "1": persistence
+    # Operational baseline (Canadian FWI System from ERA5-Land noon weather):
+    # a fixed formula, scored through the same path as the learned stages.
+    "fwi": fwi
     "2": [history]
     "3": [history, weather]
     "4a": [history, weather, fuel_terrain]

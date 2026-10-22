@@ -118,6 +118,17 @@ def test_days_since_cap():
     assert cell["days_since_last_fire"].max() == DAYS_SINCE_CAP
 
 
+def test_fwi_joins_same_day_only():
+    f = pd.DataFrame([(c, d) for c in range(9) for d in DAYS], columns=["cell_id", "date"])
+    f["fwi"] = f["date"].dt.dayofyear.astype("float32")  # value encodes its own date
+    p = _panel_with_fwi(f)
+    assert (p["fwi"] == p["date"].dt.dayofyear).all()
+
+
+def _panel_with_fwi(fwi):
+    return build_panel(_static(), _fires(FIRES), START, END, None, fwi)
+
+
 def test_weather_joins_same_day_only():
     from wfpin.ingest.weather import DAILY_COLUMNS
     w = pd.DataFrame([(c, d) for c in range(9) for d in DAYS], columns=["cell_id", "date"])
