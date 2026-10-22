@@ -91,6 +91,11 @@ def test_ablation_reports_spatial_holdout_only_when_it_was_run(tmp_path):
     assert build_ablation(cfg, predictions_dir=p, models_dir=m)["spatial_holdout"] == {
         "status": "not_run"}
 
+    unconfigured = {**cfg, "evaluation": {k: v for k, v in cfg["evaluation"].items()
+                                          if k != "spatial_holdout"}}
+    assert build_ablation(unconfigured, predictions_dir=p, models_dir=m)["spatial_holdout"] == {
+        "status": "not_configured"}
+
     run_spatial(cfg, panel, pd.Series([0, 1, 2, 0, 1, 2, 0, 1, 2], index=np.arange(9)),
                 models_dir=m, predictions_dir=p)
     spatial = build_ablation(cfg, predictions_dir=p, models_dir=m)["spatial_holdout"]

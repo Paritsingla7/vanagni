@@ -221,13 +221,15 @@ def build_ablation(config: dict, predictions_dir: Path = PREDICTIONS_DIR,
         comp = next(c for c in sens["comparisons"] if c["name"] == "human_vs_fuel")
         sensitivity.append({"tag": tag, "status": "ok",
                             **{k: v for k, v in comp.items() if k.startswith("delta_")}})
-    spatial = {"status": "not_run"}
-    try:
-        spatial = {"status": "ok", "block_km": ev["spatial_holdout"]["block_km"],
-                   "n_folds": ev["spatial_holdout"]["n_folds"],
-                   **evaluate(config, tag="_spatial", predictions_dir=predictions_dir)}
-    except FileNotFoundError:
-        pass  # `python -m wfpin.train --spatial` hasn't been run: say so, don't fake it
+    spatial = {"status": "not_configured"}
+    if "spatial_holdout" in ev:
+        spatial = {"status": "not_run"}
+        try:
+            spatial = {"status": "ok", "block_km": ev["spatial_holdout"]["block_km"],
+                       "n_folds": ev["spatial_holdout"]["n_folds"],
+                       **evaluate(config, tag="_spatial", predictions_dir=predictions_dir)}
+        except FileNotFoundError:
+            pass  # `python -m wfpin.train --spatial` hasn't been run: say so, don't fake it
     return {
         "generated_at": date.today().isoformat(),
         "k": ev["precision_at_k"],
