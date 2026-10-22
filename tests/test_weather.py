@@ -35,3 +35,12 @@ def test_gap_is_nan_not_zero():
     out = _deaccumulate_precip(tp).values
     assert np.isnan(out[2])  # 05 UTC follows a gap: unknown, not "no rain"
     np.testing.assert_allclose(out[[0, 1, 3]], [1.0, 1.0, 1.0])
+
+
+def test_priority_months_come_first_in_chronological_order():
+    from wfpin.ingest.weather import prioritise_months
+
+    months = [("2023", "12"), ("2024", "01"), ("2024", "02"), ("2024", "03"), ("2024", "07")]
+    assert prioritise_months(months, [2, 3, 4, 5, 6]) == [
+        ("2024", "02"), ("2024", "03"), ("2023", "12"), ("2024", "01"), ("2024", "07")]
+    assert prioritise_months(months, []) == sorted(months)
