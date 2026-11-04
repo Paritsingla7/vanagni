@@ -47,7 +47,8 @@ function route() {
   const name = (location.hash || "#about").slice(1).split("?")[0];
   const key = SCREENS[name] ? name : "about";
   for (const [n, id] of Object.entries(SCREENS)) $(id).hidden = n !== key;
-  document.querySelectorAll(".topbar a").forEach((a) =>
+  document.body.classList.toggle("on-landing", key === "about");
+  document.querySelectorAll(".topbar .links a").forEach((a) =>
     a.classList.toggle("active", a.getAttribute("href") === `#${key}`));
   if (!loaded[key]) {
     loaded[key] = true;
@@ -63,45 +64,157 @@ window.addEventListener("hashchange", route);
 const signed = (x) => `${x >= 0 ? "+" : ""}${fmt(x)}`;
 
 async function initAbout() {
-  const box = $("about-glance");
+  initMoments();
+  initReveal();
   let a;
   try { a = await getJSON("/api/ablation"); } catch (e) {
-    box.replaceChildren(el("p", { class: "status" }, "Results have not been built for this run yet."));
+    $("facts").replaceChildren(el("p", { class: "status" }, "Results have not been built for this run yet."));
+    initBulletin();
     return;
   }
   const cmp = (name) => a.comparisons.find((c) => c.name === name);
   const human = cmp("human_vs_fuel"), weather = cmp("weather_lift"), fwi = cmp("full_model_vs_fwi");
-  const tile = (label, c, note) => el("div", { class: "tile" },
-    el("div", { class: "tile-value" }, signed(c.delta_pr_auc)),
-    el("div", { class: "tile-label" }, label),
-    el("div", { class: "ci" }, `95% CI ${ci(c.delta_pr_auc_ci)} · ${note}`));
-  const base = a.stages[0].per_season.reduce((s, r) => s + r.base_rate, 0) / a.stages[0].per_season.length;
   const h = human.delta_pr_auc, w = weather.delta_pr_auc;
   const seasons = Object.values(human.delta_pr_auc_per_season);
-  const upSeasons = seasons.filter((x) => x > 0).length;
-  const verdict = h <= 0
-    ? "On this backtest, human-proximity features added no predictive lift, so the hypothesis is not supported."
+  const up = seasons.filter((x) => x > 0).length;
+  const fact = (n, label) => el("div", { class: "fact reveal" },
+    el("span", { class: "fact-n" }, n), el("span", { class: "fact-l" }, label));
+  $("facts").replaceChildren(
+    fact(signed(w), `PR-AUC added by weather (95% CI ${ci(weather.delta_pr_auc_ci)})`),
+    fact(signed(h), `added by roads, villages and fields (95% CI ${ci(human.delta_pr_auc_ci)})`),
+    fact(`${up} of ${seasons.length}`, "seasons in which the human-proximity lift was positive"),
+    fact(signed(fwi.delta_pr_auc), "the full model over the operational Fire Weather Index"));
+  $("verdict").textContent = h <= 0
+    ? "The answer is no: human-proximity features added no lift on this backtest."
     : h > w
-      ? `On this backtest the hypothesis is supported: human-proximity features added ${(h / w).toFixed(1)}× the lift weather did.`
-      : `On this backtest the hypothesis is not supported: weather added ${(w / h).toFixed(1)}× more predictive lift than human-proximity features.`;
-  box.replaceChildren(
-    el("div", { class: "glance" },
-      tile("Human-proximity features add", human,
-           `positive in ${upSeasons} of ${seasons.length} seasons`),
-      tile("Weather adds", weather, "change in PR-AUC"),
-      tile("Full model vs the operational Fire Weather Index", fwi, "change in PR-AUC")),
-    el("p", { class: "headline" }, verdict),
-    el("p", { class: "status" },
-      `Test seasons ${a.test_seasons.join(", ")}. On an average in-season day a given cell has a ` +
-      `${(base * 100).toFixed(1)}% chance of a detected fire the next day, so even small ` +
-      "precision gains matter; see the Ablation page for the caveats."));
+      ? `The answer is yes: human proximity added ${(h / w).toFixed(1)} times the lift of weather.`
+      : `The answer is no. Weather added about ${Math.round(w / h)} times more than roads, villages and fields did; fire history and the weather carry tomorrow.`;
+
+  // The ledger: each stage's PR-AUC, aligned on the decimal point.
+  const byStage = Object.fromEntries(a.stages.map((s) => [s.stage, s.mean.pr_auc]));
+  const rows = [
+    ["fwi", "The Fire Weather Index as a rule", "the operational dryness rating", "dim"],
+    ["1", "Burning today, burning tomorrow", "the persistence rule", "dim"],
+    ["2", "Add fire history", "recent fires in and around the cell", ""],
+    ["3", "Add weather", "heat, humidity, wind, rain, soil moisture", "key"],
+    ["4a", "Add fuel and terrain", "forest cover, slope, elevation", ""],
+    ["4b", "Add human proximity", "roads, settlements, cropland", ""],
+  ];
+  $("ledger").replaceChildren(...rows.filter(([k]) => byStage[k] != null).map(([k, title, note, cls], i) => {
+    const [whole, dec] = Number(byStage[k]).toFixed(3).split(".");
+    return el("div", { class: `lrow reveal ${cls}`, style: `--d:${i * 70}ms` },
+      el("span", { class: "whole" }, whole), el("span", { class: "dec" }, `.${dec}`),
+      el("span", { class: "cap" }, title, el("small", {}, note)));
+  }));
+  initReveal();
+  initBulletin();
+}
+
+// ---- the live inspection sheet: the real top 20 for any test day -----------------------
+const bulletin = { ranges: [], req: 0 };
+const centroid = (geom) => {
+  const ring = geom.coordinates[0];
+  return [ring.reduce((s, p) => s + p[1], 0) / ring.length, ring.reduce((s, p) => s + p[0], 0) / ring.length];
+};
+const longDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB",
+  { day: "numeric", month: "long", year: "numeric" });
+const shiftDay = (iso, n) => {
+  const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+async function initBulletin() {
+  const inp = $("b-date");
+  let index;
+  try { index = await getJSON("/api/dates"); } catch (e) {
+    $("sheet-date").textContent = "The risk files have not been built yet.";
+    return;
+  }
+  bulletin.ranges = index.ranges;
+  const days = index.ranges.reduce((s, r) =>
+    s + Math.round((Date.parse(r.end) - Date.parse(r.start)) / 864e5) + 1, 0);
+  $("n-days").textContent = days.toLocaleString("en-GB");
+  inp.min = index.ranges[0].start;
+  inp.max = index.ranges[index.ranges.length - 1].end;
+  inp.value = "2024-04-20";  // a peak-season day; any test day works
+  const valid = (iso) => bulletin.ranges.some((r) => iso >= r.start && iso <= r.end);
+  const step = (n) => {
+    let d = shiftDay(inp.value, n);
+    // jump the gap between seasons
+    for (let i = 0; i < 400 && !valid(d) && d >= inp.min && d <= inp.max; i++) d = shiftDay(d, n);
+    if (valid(d)) { inp.value = d; loadSheet(); }
+  };
+  $("b-prev").addEventListener("click", () => step(-1));
+  $("b-next").addEventListener("click", () => step(1));
+  inp.addEventListener("change", () => { if (valid(inp.value)) loadSheet(); });
+  loadSheet();
+}
+
+async function loadSheet() {
+  const iso = $("b-date").value, ticket = ++bulletin.req;
+  $("sheet-date").textContent = `for ${longDate(shiftDay(iso, 1))}`;
+  let data;
+  try { data = await getJSON(`/api/risk?date=${iso}`); } catch (e) {
+    if (ticket === bulletin.req) $("sheet-foot").textContent = e.message;
+    return;
+  }
+  if (ticket !== bulletin.req) return;
+  const ranked = [...data.features].sort((x, y) => y.properties.risk - x.properties.risk);
+  const top = ranked.slice(0, 20);
+  const hits = top.filter((f) => f.properties.fire_next_day).length;
+  const burned = data.features.filter((f) => f.properties.fire_next_day).length;
+  $("sheet-rows").replaceChildren(...top.map((f, i) => {
+    const [lat, lon] = centroid(f.geometry), fire = f.properties.fire_next_day;
+    return el("li", { class: fire ? "burned" : "" },
+      el("span", { class: "no" }, String(i + 1)),
+      el("span", {}, `Cell ${f.properties.cell_id} · ${lat.toFixed(2)}° N, ${lon.toFixed(2)}° E`),
+      el("span", { class: fire ? "hit" : "miss" }, fire ? "burned" : "no fire"));
+  }));
+  const share = (burned / data.features.length * 100).toFixed(1);
+  $("sheet-foot").textContent = `${hits} of these 20 burned. Across all ${data.features.length.toLocaleString("en-GB")} ` +
+    `cells, ${burned} did (${share}%), so a random list of 20 would expect about ${(burned / data.features.length * 20).toFixed(1)}.`;
+}
+
+// ---- the drag row and the entrances ---------------------------------------------------
+function initMoments() {
+  const row = $("moments"), bar = $("m-bar");
+  if (!row || row.dataset.ready) return;
+  row.dataset.ready = "1";
+  const update = () => {
+    const max = row.scrollWidth - row.clientWidth;
+    const seen = (row.clientWidth + row.scrollLeft) / row.scrollWidth;
+    bar.style.width = `${Math.min(100, (max <= 0 ? 1 : seen) * 100)}%`;
+  };
+  const by = () => (row.querySelector("li")?.offsetWidth || 300) + 32;
+  $("m-back").addEventListener("click", () => row.scrollBy({ left: -by(), behavior: "smooth" }));
+  $("m-fwd").addEventListener("click", () => row.scrollBy({ left: by(), behavior: "smooth" }));
+  row.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update);
+  update();
+}
+
+function initReveal() {
+  document.documentElement.classList.add("js");
+  const targets = document.querySelectorAll(
+    ".landing h2, .intro-note, .verdict, .intro-photo, .bulletin-copy, .sheet, .ledger-note," +
+    " .moments-row li, .card-list, .reply-note, .reply-card, .back-card, .reveal");
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+    if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+  }), { threshold: 0.15 });
+  targets.forEach((t, i) => {
+    if (t.classList.contains("in")) return;
+    t.classList.add("reveal");
+    if (!t.style.getPropertyValue("--d")) t.style.setProperty("--d", `${(i % 4) * 80}ms`);
+    io.observe(t);
+  });
 }
 
 // ---- 1. risk map -----------------------------------------------------------------------
 const mapState = { map: null, layer: null, fires: null, data: null, ranges: [], req: 0,
                    k: 20, fitted: false };
 
-const DARK = window.matchMedia("(prefers-color-scheme: dark)").matches;
+// The page is a light, printed object in every colour scheme, so the map follows it.
+const DARK = false;
 // Sequential ramp, one hue. On a dark surface the low end must recede, so it runs reversed.
 const RAMP = DARK ? [...SEQ].reverse() : SEQ;
 const OUTLINE = DARK ? "#f0efec" : "#0b0b0b";
@@ -123,7 +236,7 @@ async function initMap() {
   mapState.ranges = index.ranges;
   mapState.k = index.k || 20;
 
-  mapState.map = L.map("map", { zoomSnap: 0.25 }).setView([30.1, 79.2], 7);
+  mapState.map = L.map("map-canvas", { zoomSnap: 0.25 }).setView([30.1, 79.2], 7);
   // A quiet gray basemap (no API key needed) so the data, not the labels, carries the picture;
   // place names go in a pane above the choropleth so they stay readable.
   const shade = DARK ? "Dark" : "Light";
@@ -410,7 +523,7 @@ async function initMethodology() {
 
   const tests = Object.entries(m.leakage_tests).map(([name, t]) => {
     const kind = t.status === "pass" ? "pass" : t.status === "fail" ? "fail" : "notrun";
-    const mark = { pass: "✓ pass", fail: "✗ FAIL", notrun: "– not run" }[kind];
+    const mark = { pass: "Passed", fail: "FAILED", notrun: "Not run" }[kind];
     return el("p", {}, el("span", { class: `badge ${kind}` }, mark), " ",
       name.replaceAll("_", " "), t.last_run ? ` (last run ${t.last_run})` : "");
   });
