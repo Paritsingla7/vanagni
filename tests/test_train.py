@@ -156,3 +156,38 @@ def test_run_spatial_scores_every_test_row_exactly_once(tmp_path):
         pred = pd.read_parquet(tmp_path / "p" / f"stage_{stage}_season_2024_spatial.parquet")
         assert len(pred) == len(full_test)
         assert not pred.duplicated(["cell_id", "date"]).any()
+
+
+def test_wrapped_season_helpers_and_folds():
+    """A Nov 1 - Jun 30 season (doy 305 -> 181) wraps the new year: Nov-Dec belongs to the
+    season that ends the next year, and a fold must never train on any day of its test season."""
+    from wfpin.panel import days_since_onset, in_season_mask, season_year
+
+    dates = pd.to_datetime(["2021-10-31", "2021-11-01", "2021-12-31", "2022-01-01",
+                            "2022-06-30", "2022-07-01"])
+    doy, yr = dates.dayofyear.to_numpy(), dates.year.to_numpy()
+    start, end = np.full(6, 305), np.full(6, 181)
+    assert in_season_mask(doy, start, end).tolist() == [False, True, True, True, True, False]
+    assert season_year(yr, doy, start, end).tolist() == [2021, 2022, 2022, 2022, 2022, 2022]
+    onset = days_since_onset(doy, start, end)
+    assert onset[1] == 0 and onset[3] == onset[2] + 1  # continuous across new year
+    # a plain window is unchanged: calendar year, in [start, end], onset = doy - start
+    s, e = np.full(6, 46), np.full(6, 166)
+    assert season_year(yr, doy, s, e).tolist() == yr.tolist()
+    assert in_season_mask(doy, s, e).tolist() == [False, False, False, False, False, False]
+
+    days = pd.date_range("2017-01-01", "2024-06-30")
+    doy_all = days.dayofyear.to_numpy()
+    panel = pd.DataFrame({
+        "date": days, "cell_id": 0, "fire_today": False,
+        LABEL: pd.array(np.tile([True, False], len(days))[: len(days)], dtype="boolean"),
+        "in_season": in_season_mask(doy_all, 305, 181),
+        "season": season_year(days.year.to_numpy(), doy_all, 305, 181),
+    })
+    cfg = {**CONFIG, "evaluation": {**CONFIG["evaluation"], "test_seasons": [2022, 2024]}}
+    for season, train, test in folds(panel, cfg):
+        assert train["season"].max() < season
+        assert (test["season"] == season).all() and test["in_season"].all()
+        # day-of-year 305 is Nov 1 in common years and Oct 31 in leap years
+        assert test["date"].min() in (pd.Timestamp(f"{season - 1}-10-31"),
+                                      pd.Timestamp(f"{season - 1}-11-01"))

@@ -61,6 +61,29 @@ def vegetation_share(landcover_path: Path, codes: list[int], footprint_px: int):
     return share, transform
 
 
+def in_season_mask(doy, start, end):
+    """Day-of-year inside [start, end]. A window with start > end wraps the new year
+    (Odisha: Nov 1 -> Jun 30), so it is `doy >= start or doy <= end`."""
+    doy, start, end = np.asarray(doy), np.asarray(start), np.asarray(end)
+    return np.where(start <= end, (doy >= start) & (doy <= end), (doy >= start) | (doy <= end))
+
+
+def season_year(year, doy, start, end):
+    """The test-season label of a day: the calendar year the fire season ENDS in.
+    Identical to the calendar year for a non-wrapping window; for a wrapping one the
+    Nov-Dec part of a season belongs to the next year's season."""
+    year, doy, start, end = map(np.asarray, (year, doy, start, end))
+    return year + ((start > end) & (doy >= start)).astype(year.dtype)
+
+
+def days_since_onset(doy, start, end):
+    """Days since the season started; for a wrapping window, the Jan-Jun part counts on
+    from the previous year's start (so onset-relative time is continuous across new year)."""
+    doy, start, end = np.asarray(doy), np.asarray(start), np.asarray(end)
+    wrapped_after = (start > end) & (doy <= end)
+    return doy - start + 365 * wrapped_after
+
+
 def persistent_hotspots(
     det: pd.DataFrame, bin_m: float, reference: tuple[str, str], min_years: int
 ) -> pd.Series:
@@ -125,9 +148,9 @@ def qualify_detections(
     det["date"] = local_day(det["acq_date"], det["acq_time"])
     season = static.set_index("cell_id")[["season_start_doy", "season_end_doy"]]
     det = det[det["cell_id"].isin(season.index)]
-    doy = det["date"].dt.dayofyear
-    det["in_season"] = doy.between(
-        det["cell_id"].map(season["season_start_doy"]), det["cell_id"].map(season["season_end_doy"])
+    det["in_season"] = in_season_mask(
+        det["date"].dt.dayofyear, det["cell_id"].map(season["season_start_doy"]),
+        det["cell_id"].map(season["season_end_doy"]),
     )
     hot = persistent_hotspots(
         det, lab["persistent_hotspot_bin_m"], tuple(lab["persistent_hotspot_reference"]),
@@ -222,8 +245,10 @@ def build_panel(
             "days_since_last_fire": since.ravel(),
             "has_fire_history": (last >= 0).ravel(),
             "neighbor_fire_pressure_7d": pressure.ravel(),
-            "days_since_season_onset": (doy - start_doy).astype("int16"),
-            "in_season": (doy >= start_doy) & (doy <= end_doy),
+            "days_since_season_onset": days_since_onset(doy, start_doy, end_doy).astype("int16"),
+            "in_season": in_season_mask(doy, start_doy, end_doy),
+            "season": season_year(np.tile(days.year.to_numpy(), n_cells), doy, start_doy,
+                                  end_doy).astype("int16"),
         }
     )
     for col in STATIC_FEATURE_COLUMNS:
