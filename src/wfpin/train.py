@@ -35,16 +35,23 @@ from wfpin.features import (
 KEY_COLUMNS = ["cell_id", "date", LABEL, "in_season", "fire_today"]
 
 
+def _season_of(frame: pd.DataFrame) -> pd.Series:
+    """Season label per row: the panel's `season` column (the year the fire season ends in,
+    so a Nov-Jun season is one season), or the calendar year for a panel built before it."""
+    return frame["season"] if "season" in frame.columns else frame["date"].dt.year
+
+
 def folds(panel: pd.DataFrame, config: dict) -> Iterator[tuple[int, pd.DataFrame, pd.DataFrame]]:
     """FR-5.1 rolling origin: (season, train, test). Train = labelled rows of
     every season before S (in-season only if configured); test = labelled
-    in-season rows of S. Seasons are calendar years -- the FR-2.4 window
-    (Feb 15 - Jun 15) sits inside one year."""
+    in-season rows of S. A season is labelled by the year it
+    ends in (panel `season`); for Uttarakhand's Feb 15 - Jun 15 window that is the calendar
+    year, for a window that wraps the new year (Odisha) Nov-Dec belong to the next season."""
     labelled = panel[panel[LABEL].notna()]
-    year = labelled["date"].dt.year
+    year = _season_of(labelled)
     in_season_only = config["ablation"]["train_in_season_only"]
     pool = labelled[labelled["in_season"]] if in_season_only else labelled
-    pool_year = pool["date"].dt.year
+    pool_year = _season_of(pool)
     for season in config["evaluation"]["test_seasons"]:
         train = pool[pool_year < season]
         test = labelled[(year == season) & labelled["in_season"]]
