@@ -33,3 +33,9 @@ static_layers:
   osm:
     pbf_url: https://download.openstreetmap.fr/extracts/asia/india/odisha-latest.osm.pbf
     state_name: Odisha  # admin_level=4 boundary the grid is clipped to
+
+fwi:
+  # Restart the moisture codes on Oct 1, after the monsoon has saturated the ground (the
+  # standard startup values assume a wet start) and a month before the Nov 1 season opens.
+  # The default Jan 1 would reset them in the middle of Odisha's season.
+  restart: [10, 1]
