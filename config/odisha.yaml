@@ -2,13 +2,11 @@
 # here; everything else comes from defaults.yaml, and data goes to data/odisha/ (no paths
 # block), so nothing of Uttarakhand's can be overwritten.
 #
-# STATUS: static layers only. ERA5 weather, FIRMS ingest and modelling are not run for
-# Odisha: the weather pull alone is a multi-day wait in Copernicus's queue.
+# STATUS: static layers built; ERA5 weather, FIRMS ingest and modelling follow.
 #
-# KNOWN GAP (not solved here): Odisha's fire season is longer than Uttarakhand's. FSI-based
-# alert counts run November-June, with fires already burning in January-February (see
-# fire_calendar_odisha.csv), so the season wraps the new year, which the panel's
-# in_season test (a plain day-of-year range) cannot represent.
+# SEASON: Nov 1 - Jun 30 wraps the new year (start doy 305 > end doy 181). The panel,
+# folds and in_season test handle that; a test season is labelled by the year it ends in
+# (test season 2022 = Nov 2021 - Jun 2022).
 
 region:
   name: odisha
