@@ -16,7 +16,7 @@ FORCE  ?=
 FORCE_FLAG := $(if $(FORCE),--force,)
 
 .PHONY: pipeline ingest static weather weather-resample fwi panel panel-sensitivity train train-sensitivity \
-        train-spatial evaluate serve test lint
+        train-spatial evaluate serve site test lint
 
 pipeline: ingest static weather fwi panel panel-sensitivity train train-sensitivity \
           train-spatial evaluate
@@ -70,6 +70,10 @@ evaluate:
 
 serve:
 	$(PY) -m wfpin.serve.api --config $(CONFIG)
+
+# The same demo as a static site in site/ (no server): deploy with `npx vercel deploy site --prod`
+site:
+	$(PY) -m wfpin.serve.export --config $(CONFIG) --out site
 
 test:
 	$(PY) -m pytest -q

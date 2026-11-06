@@ -18,11 +18,46 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-async function getJSON(url) {
+async function fetchJSON(url) {
   const res = await fetch(url);
   const body = await res.json();
   if (!res.ok) throw new Error(body.message || `${res.status}`);
   return body;
+}
+
+// Static hosting (the exported site, e.g. on Vercel): no server, so the same pre-computed
+// files are read directly. `wfpin.serve.export` sets data-static on <html>; the Flask app
+// never does, so it keeps calling its /api endpoints unchanged.
+const STATIC = document.documentElement.dataset.static === "1";
+const staticCache = {};
+const cached = (url) => (staticCache[url] ||= fetchJSON(url).catch((e) => {
+  delete staticCache[url]; throw e;
+}));
+
+async function staticRisk(day) {
+  const index = await cached("/data/risk/index.json");
+  if (!index.ranges.some((r) => r.start <= day && day <= r.end)) {
+    const valid = index.ranges.map((r) => `${r.start} to ${r.end}`).join(", ");
+    throw new Error(`No prediction exists for ${day}. Valid dates: ${valid}.`);
+  }
+  const [grid, payload] = await Promise.all([cached("/data/risk/grid.geojson"),
+                                             fetchJSON(`/data/risk/${day}.json`)]);
+  const geometry = grid._byId ||= Object.fromEntries(
+    grid.features.map((f) => [String(f.properties.cell_id), f.geometry]));
+  return { type: "FeatureCollection", date: payload.date,
+           features: Object.entries(payload.cells).map(([cid, [r, y]]) => ({
+             type: "Feature", geometry: geometry[cid],
+             properties: { cell_id: Number(cid), risk: r, fire_next_day: y } })) };
+}
+
+async function getJSON(url) {
+  if (!STATIC) return fetchJSON(url);
+  const [path, query] = url.split("?");
+  if (path === "/api/ablation") return cached("/data/ablation.json");
+  if (path === "/api/methodology") return cached("/data/methodology.json");
+  if (path === "/api/dates") return cached("/data/risk/index.json");
+  if (path === "/api/risk") return staticRisk(new URLSearchParams(query).get("date") || "");
+  throw new Error(`No static file for ${path}`);
 }
 
 function showError(target, err) {

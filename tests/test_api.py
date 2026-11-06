@@ -53,3 +53,21 @@ def test_frontend_is_served(data_dir):
     client = create_app(data_dir).test_client()
     assert b"Vanagni" in client.get("/").data
     assert client.get("/static/app.js").status_code == 200
+
+
+def test_static_export_mirrors_the_api(data_dir, tmp_path):
+    """The exported site carries exactly the files the API serves, and is marked static."""
+    from wfpin.serve.export import export_site
+
+    (data_dir / "methodology.json").write_text(json.dumps({"grid": {}}))
+    (data_dir / "risk" / "2023-01-01.json").write_text("{}")  # outside every range: dropped
+    out = tmp_path / "site"
+    info = export_site(data_dir, out)
+    assert info == {"days": 1, "seasons": [2024]}
+    assert 'data-static="1"' in (out / "index.html").read_text()
+    for name in ("ablation.json", "methodology.json", "risk/index.json", "risk/grid.geojson",
+                 "risk/2024-04-12.json", "static/app.js", "vercel.json"):
+        assert (out / name).exists() or (out / "data" / name).exists(), name
+    assert not (out / "data" / "risk" / "2023-01-01.json").exists()
+    with pytest.raises(FileNotFoundError):
+        export_site(tmp_path / "empty", tmp_path / "site2")
