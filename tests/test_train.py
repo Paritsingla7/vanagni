@@ -40,7 +40,9 @@ def test_unknown_family_is_an_error():
         stage_features(cfg, "x")
 
 
-def _synthetic_panel(seasons=range(2017, 2025), n_cells=9, seed=0):
+def _synthetic_panel(seasons=None, n_cells=9, seed=0):
+    # Span every configured test season, so a longer window cannot leave one empty.
+    seasons = seasons or range(2017, max(CONFIG["evaluation"]["test_seasons"]) + 1)
     from tests.test_panel_leakage import _static
 
     rng = np.random.default_rng(seed)

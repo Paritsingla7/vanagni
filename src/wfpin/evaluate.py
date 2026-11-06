@@ -283,6 +283,7 @@ def build_methodology(config: dict, leakage: dict | None) -> dict:
     weather = p.processed / "weather_daily.parquet"
     weather_dates = pd.read_parquet(weather, columns=["date"])["date"]
     b = config["region"]["bbox"]
+    years = f'{config["window"]["start"][:4]}-{config["window"]["end"][:4]}'
     return {
         "generated_at": date.today().isoformat(),
         "data_sources": [
@@ -308,7 +309,7 @@ def build_methodology(config: dict, leakage: dict | None) -> dict:
             "Uttarakhand only: no test of generalisation to another state's fire regime.",
             "The fire calendar is one state-wide window (Feb 15 - Jun 15); no district-level "
             "source was found, so the human-calendar part of the hypothesis is not tested.",
-            "Road/settlement distances come from today's OpenStreetMap applied to 2017-2024; "
+            f"Road/settlement distances come from today's OpenStreetMap applied to {years}; "
             "roads built in the window (e.g. the Char Dham highway) are treated as always present.",
             "The OSM extract stops at the state border, so distances in border cells are upper "
             "bounds.",
