@@ -45,7 +45,7 @@
             <div class="front-body">
               <div>
                 <a class="btn" href="#map">Open the risk map</a>
-                <p>Four fire seasons, 2021 to 2024, one day at a time. Each day's ranking was made
+                <p><span data-fill="seasons-cap">Four fire seasons, 2021 to 2024</span>, one day at a time. Each day's ranking was made
                   by a model that had only seen earlier years.</p>
               </div>
               <figure class="plate">
@@ -80,8 +80,7 @@
              loading="lazy" alt="">
         <div class="bulletin-copy">
           <h2 id="b-head">Inspection sheet</h2>
-          <p>A forest-watch team can visit about twenty places in a day. Pick any day of the four
-            test seasons: this is the list the model would have handed them the evening before,
+          <p>A forest-watch team can visit about twenty places in a day. Pick any day of the <span data-fill="seasons-n">four</span> test seasons: this is the list the model would have handed them the evening before,
             and what the satellite saw the next day.</p>
           <div class="day-picker">
             <button type="button" class="step" id="b-prev" aria-label="Previous day">Earlier</button>
@@ -102,7 +101,7 @@
       <section class="ledger" aria-labelledby="l-head">
         <h2 id="l-head"><span>What each layer</span> adds</h2>
         <div class="ledger-rows" id="ledger"></div>
-        <p class="ledger-note">PR-AUC, averaged over the four test seasons: how well a ranking puts
+        <p class="ledger-note">PR-AUC, averaged over the <span data-fill="seasons-n">four</span> test seasons: how well a ranking puts
           the cells that burn at the top. Ranking at random would score about 0.02, the share of
           cells that burn on a given day.</p>
       </section>
@@ -119,21 +118,21 @@
         <ol class="moments-row" id="moments">
           <li style="--gap:96px">
             <h3>Every hotspot from space</h3>
-            <p>342,805 heat detections over the state from NASA's VIIRS sensor, 2017 to 2024, each
+            <p><span data-fill="raw">342,805</span> heat detections over the state from NASA's VIIRS sensor, <span data-fill="window">2017 to 2024</span>, each
               375&nbsp;m across.</p>
             <img src="/static/img/fire-line.jpg" width="1800" height="1350" loading="lazy"
                  alt="A cleared fire line between burnt forest floor in Ramnagar forest division">
           </li>
           <li style="--gap:32px">
             <h3>Keep only forest fire</h3>
-            <p>Farm burning, kilns and weak detections are removed by four filters. 91,268
+            <p>Farm burning, kilns and weak detections are removed by four filters. <span data-fill="kept">91,268</span>
               detections remain.</p>
             <img src="/static/img/uttarakhand-pine.jpg" width="1800" height="1013" loading="lazy"
                  alt="A mountain road winding below a hillside of burnt pine in Uttarakhand">
           </li>
           <li style="--gap:128px">
             <h3>Cut the state into cells</h3>
-            <p>A 5&nbsp;km grid: 1,950 cells with enough forest to burn, followed for 2,738
+            <p>A 5&nbsp;km grid: <span data-fill="cells">1,950</span> cells with enough forest to burn, followed for <span data-fill="days">2,738</span>
               days.</p>
             <img src="/static/img/himalaya-indian.jpg" width="1800" height="1181" loading="lazy"
                  alt="Detail of an 1894 Survey of India atlas sheet of the Kumaon hills">

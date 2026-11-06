@@ -99,6 +99,7 @@ window.addEventListener("hashchange", route);
 const signed = (x) => `${x >= 0 ? "+" : ""}${fmt(x)}`;
 
 async function initAbout() {
+  fillCopy();
   initMoments();
   initReveal();
   let a;
@@ -143,6 +144,31 @@ async function initAbout() {
   }));
   initReveal();
   initBulletin();
+}
+
+// ---- counts in the page copy, filled from the same files as everything else -------------
+const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+const fill = (key, text) => document.querySelectorAll(`[data-fill="${key}"]`)
+  .forEach((n) => { n.textContent = text; });
+
+async function fillCopy() {
+  try {
+    const [index, m] = await Promise.all([getJSON("/api/dates"), getJSON("/api/methodology")]);
+    const seasons = index.ranges.map((r) => r.season);
+    const n = WORDS[seasons.length] || String(seasons.length);
+    fill("seasons-n", n);
+    fill("seasons-cap", `${n[0].toUpperCase()}${n.slice(1)} fire seasons, ${seasons[0]} to ${seasons.at(-1)}`);
+    const steps = Object.values(m.label?.filter_steps || {});
+    const nf = (x) => Number(x).toLocaleString("en-GB");
+    if (steps.length) { fill("raw", nf(steps[0])); fill("kept", nf(steps.at(-1))); }
+    if (m.grid?.cells_scored) fill("cells", nf(m.grid.cells_scored));
+    const fire = (m.data_sources || []).find((d) => /FIRMS/.test(d.name));
+    const weather = (m.data_sources || []).find((d) => /ERA5/.test(d.name));
+    if (fire?.window) fill("window", `${fire.window.start.slice(0, 4)} to ${fire.window.end.slice(0, 4)}`);
+    if (fire?.window && weather?.window) {   // the panel runs from the window start to the last weather day
+      fill("days", nf(Math.round((Date.parse(weather.window.end) - Date.parse(fire.window.start)) / 864e5) + 1));
+    }
+  } catch (e) { /* the written defaults stay */ }
 }
 
 // ---- the live inspection sheet: the real top 20 for any test day -----------------------
