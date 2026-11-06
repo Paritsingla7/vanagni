@@ -97,6 +97,8 @@ window.addEventListener("hashchange", route);
 
 // ---- 0. about: result at a glance (computed from the real results, never typed in) ------
 const signed = (x) => `${x >= 0 ? "+" : ""}${fmt(x)}`;
+// Seasons with a lift at the precision shown (3 dp): +0.0003 is not a lift anyone could see.
+const positiveSeasons = (xs) => xs.filter((x) => Number(x.toFixed(3)) > 0).length;
 
 async function initAbout() {
   fillCopy();
@@ -112,7 +114,7 @@ async function initAbout() {
   const human = cmp("human_vs_fuel"), weather = cmp("weather_lift"), fwi = cmp("full_model_vs_fwi");
   const h = human.delta_pr_auc, w = weather.delta_pr_auc;
   const seasons = Object.values(human.delta_pr_auc_per_season);
-  const up = seasons.filter((x) => x > 0).length;
+  const up = positiveSeasons(seasons);
   const fact = (n, label) => el("div", { class: "fact reveal" },
     el("span", { class: "fact-n" }, n), el("span", { class: "fact-l" }, label));
   $("facts").replaceChildren(
@@ -471,7 +473,7 @@ async function initAblation() {
         `(95% CI ${ci(human.delta_pr_auc_ci)}).`;
     const weather = a.comparisons.find((c) => c.name === "weather_lift");
     const perSeason = Object.values(human.delta_pr_auc_per_season);
-    const positive = perSeason.filter((x) => x > 0).length;
+    const positive = positiveSeasons(perSeason);
     const context = (weather ? ` For comparison, adding weather changed it by ` +
       `${weather.delta_pr_auc >= 0 ? "+" : ""}${fmt(weather.delta_pr_auc)}.` : "") +
       ` The human-proximity change was positive in ${positive} of ${perSeason.length} test seasons.`;
