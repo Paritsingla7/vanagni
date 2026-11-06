@@ -9,6 +9,7 @@ results, nothing re-scored -- into one folder:
     out/data/risk/index.json, out/data/risk/grid.geojson, out/data/risk/<date>.json
 
     python -m wfpin.serve.export [--config config/uttarakhand.yaml] [--out site]
+    npx vercel deploy site --prod      # first time: npx vercel link --cwd site --project vanagni
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from pathlib import Path
 from wfpin.config import cli_args, paths
 from wfpin.serve.api import STATIC_DIR
 
+KEEP = {".vercel", ".gitignore"}
 REQUIRED = ["ablation.json", "methodology.json", "risk/index.json", "risk/grid.geojson"]
 
 
@@ -26,8 +28,12 @@ def export_site(data_dir: Path, out: Path) -> dict:
     missing = [name for name in REQUIRED if not (data_dir / name).exists()]
     if missing:
         raise FileNotFoundError(f"{missing} not in {data_dir}. Run evaluate.py first.")
+    # Replace the build, but keep a hosting link (.vercel/) so a re-export redeploys in place.
     if out.exists():
-        shutil.rmtree(out)
+        for child in out.iterdir():
+            if child.name in KEEP:
+                continue
+            shutil.rmtree(child) if child.is_dir() else child.unlink()
     shutil.copytree(STATIC_DIR, out / "static")
 
     html = (STATIC_DIR / "index.html").read_text()

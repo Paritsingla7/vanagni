@@ -71,7 +71,7 @@ evaluate:
 serve:
 	$(PY) -m wfpin.serve.api --config $(CONFIG)
 
-# The same demo as a static site in site/ (no server): deploy with `npx vercel deploy site --prod`
+# The same demo as a static site in site/ (no server): deploy with `npx vercel deploy site --prod` (live: https://vanagni.vercel.app)
 site:
 	$(PY) -m wfpin.serve.export --config $(CONFIG) --out site
 
