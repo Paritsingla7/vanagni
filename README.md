@@ -9,9 +9,9 @@ people (roads, settlements, cropland). Every prediction is scored against what a
 > **The question it tests.** In a fire regime that is reportedly 90–95% human-caused, do human-proximity
 > features add more predictive lift than weather?
 >
-> **The answer, on four held-out fire seasons (2021–2024): no.** Weather added **+0.038** PR-AUC;
-> human-proximity features added **+0.005**, positive in only 2 of the 4 seasons and
-> indistinguishable from zero on places the model never trained on.
+> **The answer, on six held-out fire seasons (2021–2026): no.** Weather added **+0.035** PR-AUC;
+> human-proximity features added **+0.003**, all of it from the first two seasons (nothing in
+> 2023–2026), and indistinguishable from zero on places the model never trained on.
 > The full write-up is in [REPORT.md](REPORT.md).
 
 ![Risk map: model ranking against the fires that followed](assets/map.png)
@@ -25,31 +25,31 @@ cells are outlined, and orange dots are the fires detected the next day (11 of t
 
 | | |
 |---|---|
-| **Leakage-safe panel** | One row per cell and day (5.3 M rows across the 1,950 scored cells); the label is a qualifying fire on day *d+1*, and every feature is computed from day *d* or earlier. Windows are array-based, never positional, so a missing day cannot shift one. |
-| **Honest label** | Raw satellite detections are filtered to vegetation fires: FIRMS static-source flag, confidence, ≥ 50 % natural vegetation in the 375 m footprint, no repeat hotspots (kilns, factories). 342,805 raw detections become 91,268 qualifying ones. |
+| **Leakage-safe panel** | One row per cell and day (6.8 M rows across the 1,950 scored cells); the label is a qualifying fire on day *d+1*, and every feature is computed from day *d* or earlier. Windows are array-based, never positional, so a missing day cannot shift one. |
+| **Honest label** | Raw satellite detections are filtered to vegetation fires: FIRMS static-source flag, confidence, ≥ 50 % natural vegetation in the 375 m footprint, no repeat hotspots (kilns, factories). 397,346 raw detections become 104,440 qualifying ones. |
 | **Staged ablation** | Persistence → fire history → + weather → + fuel & terrain → + human proximity, plus a "full model minus weather" run so credit does not depend on the order features are added. |
 | **Operational baseline** | The Canadian Fire Weather Index, implemented from the published equations and checked against the published reference case, as a fixed-formula rule and as a model feature. |
-| **Rigour** | Rolling-origin evaluation over four seasons, 7-day block-bootstrap confidence intervals on every metric and every stage difference, a spatial-block holdout (whole 50 km blocks held out), label-threshold sensitivity runs, and automated leakage tests that gate the Methodology page. |
+| **Rigour** | Rolling-origin evaluation over six seasons, 7-day block-bootstrap confidence intervals on every metric and every stage difference, a spatial-block holdout (whole 50 km blocks held out), label-threshold sensitivity runs, and automated leakage tests that gate the Methodology page. |
 | **Demo** | A read-only Flask API and four plain-JS screens (About, Risk Map, Ablation, Methodology) over pre-computed results. Nothing trains or scores on request. |
 | **A second region** | `config/odisha.yaml` plus a shared `config/defaults.yaml`: Odisha's grid, terrain, land cover, roads and 30 districts are built by the same pipeline. See [Scaling](#scaling). |
 
 ## Results at a glance
 
-Mean over test seasons 2021–2024 (21,485 positive test cell-days; base rate 0.9–3.3 % per season):
+Mean over test seasons 2021–2026 (26,209 positive test cell-days; base rate 0.55–3.3 % per season):
 
 | Stage | PR-AUC (95 % CI) |
 |---|---|
-| Persistence (fire today → fire tomorrow) | 0.088 (0.064–0.105) |
-| Fire Weather Index, as a rule | 0.045 (0.032–0.056) |
-| + fire history | 0.148 (0.103–0.178) |
-| + weather | 0.186 (0.134–0.217) |
-| + fuel & terrain | 0.195 (0.143–0.225) |
-| + human proximity | 0.199 (0.146–0.230) |
-| full model minus weather | 0.165 (0.118–0.196) |
+| Persistence (fire today → fire tomorrow) | 0.075 (0.058–0.088) |
+| Fire Weather Index, as a rule | 0.038 (0.029–0.045) |
+| + fire history | 0.145 (0.111–0.167) |
+| + weather | 0.180 (0.140–0.203) |
+| + fuel & terrain | 0.187 (0.147–0.210) |
+| + human proximity | 0.190 (0.149–0.214) |
+| full model minus weather | 0.158 (0.123–0.181) |
 
-Intervals reflect day-to-day noise within seasons, not season-to-season variation; with four seasons,
-treat small differences with caution. Precision@20 is 0.14–0.155 for every learned stage (persistence
-0.125), and the stage-to-stage differences in it are within its intervals.
+Intervals reflect day-to-day noise within seasons, not season-to-season variation; with six seasons,
+treat small differences with caution. Precision@20 is 0.12–0.13 for every learned stage (persistence
+0.103), and the stage-to-stage differences in it are within its intervals.
 [REPORT.md](REPORT.md) has the full tables, the spatial holdout, the sensitivity runs and the limitations.
 
 ## Quick start
@@ -110,16 +110,17 @@ A second state is a config file, not new code. `config/odisha.yaml` (37 lines) b
 projection config-driven, computing the SRTM tile cap from the bbox, and handling land-cover tiles
 that do not exist over open water.
 
-What is **not** done, and is the honest next step: Odisha's weather and modelling (a multi-day
-Copernicus wait), and its fire season, which runs November to June and so wraps the new year, something
-the panel's season test cannot yet represent. Beyond that: district-level human-ignition calendars,
+Odisha's fire season runs November to June and so wraps the new year; the panel, rolling-origin folds
+and FWI restart now handle that (a season is labelled by the year it ends in). What is **not** done, and
+is the honest next step: Odisha's weather (downloading; a multi-day Copernicus wait) and modelling.
+Beyond that: district-level human-ignition calendars,
 calibrated probabilities, and live scoring from a weather forecast instead of reanalysis.
 
 ## Limitations
 
-Backtest only; one state; four seasons; ERA5-Land (about 9–11 km) is coarser than the 5 km grid;
+Backtest only; one state; six seasons; ERA5-Land (about 9–11 km) is coarser than the 5 km grid;
 the fire calendar is one state-wide window, so the *timing* half of the human-ignition hypothesis is
-untested; OSM roads are today's, applied to 2017–2024; land cover cannot separate chir pine from other
+untested; OSM roads are today's, applied to 2017–2026; land cover cannot separate chir pine from other
 forest. See [REPORT.md](REPORT.md) for the complete list.
 
 ## Licence

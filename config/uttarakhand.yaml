@@ -20,6 +20,15 @@ paths:
   raw: data/raw
   processed: data/processed
 
+window:
+  # Extended to the 2026 season (FIRMS standard processing reaches 2026-07-31). The last
+  # test season ends Jun 15, so nothing after Jun 30 can change a result.
+  end: "2026-06-30"
+
+evaluation:
+  # Six rolling-origin test seasons: each trains on every earlier season only.
+  test_seasons: [2021, 2022, 2023, 2024, 2025, 2026]
+
 season:
   # FR-2.4: the days-since-onset anchor lives in this per-district table
   # (single source of truth -- currently a state-wide Feb 15-Jun 15 window

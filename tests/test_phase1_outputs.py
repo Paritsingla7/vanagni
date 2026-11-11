@@ -7,7 +7,8 @@ import pytest
 
 from wfpin.config import load_config, paths
 
-P = paths(load_config())
+CONFIG = load_config()
+P = paths(CONFIG)
 STATIC = P.processed / "static_layers.parquet"
 WEATHER = P.processed / "weather_daily.parquet"
 FIRE = P.raw / "fire/firms_viirs.csv"
@@ -53,6 +54,7 @@ def test_weather_daily_dense_and_sane():
 def test_fire_raw_has_both_satellites_and_window():
     f = pd.read_csv(FIRE, usecols=["acq_date", "satellite", "type"])
     assert set(f["satellite"].astype(str)) == {"N", "N20"}
-    assert f["acq_date"].min() >= "2017-01-01" and f["acq_date"].max() <= "2024-12-31"
+    window = CONFIG["window"]
+    assert f["acq_date"].min() >= window["start"] and f["acq_date"].max() <= window["end"]
     noaa20_first = f.loc[f["satellite"].astype(str) == "N20", "acq_date"].min()
     assert noaa20_first >= "2018-04-01"
