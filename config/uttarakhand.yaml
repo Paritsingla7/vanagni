@@ -13,6 +13,11 @@ region:
     south: 28.6
     west: 77.5
     east: 81.1
+  # Shown on the methodology page after the limits every region shares.
+  known_limitations:
+    - "The fire calendar is one state-wide window (Feb 15 - Jun 15); no district-level source was found, so the human-calendar part of the hypothesis is not tested."
+    - "Roads built during the window, such as the Char Dham highway, are treated as always present."
+    - "Chir pine, the most fire-prone forest here, is not separated from other forest in the land-cover layer."
 
 paths:
   # Uttarakhand keeps its original data layout. A new region omits this block

@@ -112,3 +112,17 @@ def test_date_gaps_reports_missing_runs_between_first_and_last_day():
     assert date_gaps(pd.Series(days)) == [
         {"start": "2023-12-01", "end": "2023-12-03"}, {"start": "2023-12-06", "end": "2023-12-08"}]
     assert date_gaps(pd.Series(pd.date_range("2023-01-01", "2023-01-10"))) == []
+
+
+def test_known_limitations_are_each_regions_own():
+    """The methodology page lists shared limits plus the region's own: Odisha's page must
+    not carry Uttarakhand's calendar, highway or forest type, and the FWI restart is read
+    from the config, not written in."""
+    from wfpin.evaluate import known_limitations
+
+    uk = " ".join(known_limitations(load_config("config/uttarakhand.yaml")))
+    od = " ".join(known_limitations(load_config("config/odisha.yaml")))
+    for word in ("Uttarakhand", "Char Dham", "Chir pine", "Feb 15", "January 1"):
+        assert word not in od
+    assert "Char Dham" in uk and "January 1 restart" in uk
+    assert "Nov 1 - Jun 30" in od and "October 1 restart" in od

@@ -2,8 +2,6 @@
 # here; everything else comes from defaults.yaml, and data goes to data/odisha/ (no paths
 # block), so nothing of Uttarakhand's can be overwritten.
 #
-# STATUS: static layers built; ERA5 weather, FIRMS ingest and modelling follow.
-#
 # SEASON: Nov 1 - Jun 30 wraps the new year (start doy 305 > end doy 181). The panel,
 # folds and in_season test handle that; a test season is labelled by the year it ends in
 # (test season 2022 = Nov 2021 - Jun 2022).
@@ -21,6 +19,11 @@ region:
     south: 17.7
     west: 81.3
     east: 87.6
+  # Shown on the methodology page after the limits every region shares.
+  known_limitations:
+    - "The fire calendar is one provisional state-wide window (Nov 1 - Jun 30, from the Forest Survey of India alert season); no district-level source was found."
+    - "Four test seasons (2021-2024): the ERA5-Land download covers January 2017 to June 2024."
+    - "Dry deciduous and sal forest are not separated in the land-cover layer, and much of the state's fire is in shifting-cultivation areas that WorldCover may map as shrub or cropland."
 
 season:
   calendar_csv: config/fire_calendar_odisha.csv
