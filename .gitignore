@@ -31,3 +31,6 @@ data/
 
 # Planning docs — kept locally as working notes, not published to this repo
 docs/
+
+# Static export of the demo (python -m wfpin.serve.export); rebuilt, never committed
+site/

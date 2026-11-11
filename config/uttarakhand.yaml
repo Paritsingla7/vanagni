@@ -1,36 +1,55 @@
-# Vanagni: Uttarakhand v1 config. See docs/EXECUTION_PLAN.md Phase 0.2.
+# Vanagni: Uttarakhand v1 config (region-specific settings; shared defaults are in
+# defaults.yaml). See docs/EXECUTION_PLAN.md Phase 0.2.
 
 region:
   name: uttarakhand
   state_id: UK
+  # Projected CRS for the 5 km lattice (UTM 44N covers the whole state). If
+  # omitted, the UTM zone of the bbox centre is used.
+  crs: EPSG:32644
   # Padded bounding box (actual state extent: ~28.71N-31.28N, 77.57E-81.03E)
   bbox:
     north: 31.5
     south: 28.6
     west: 77.5
     east: 81.1
+  # Shown on the methodology page after the limits every region shares.
+  known_limitations:
+    - "The fire calendar is one state-wide window (Feb 15 - Jun 15); no district-level source was found, so the human-calendar part of the hypothesis is not tested."
+    - "Roads built during the window, such as the Char Dham highway, are treated as always present."
+    - "Chir pine, the most fire-prone forest here, is not separated from other forest in the land-cover layer."
 
-grid:
-  # 5 km: the finer end of INDIA.md's 5-10km range. ERA5-Land (~10km) is
-  # the coarser input either way, but VIIRS fire detections (375m) and
-  # terrain (slope/aspect matter a lot in this relief) both resolve much
-  # finer than 10km, so 5km keeps those features meaningful.
-  resolution_km: 5
+paths:
+  # Uttarakhand keeps its original data layout. A new region omits this block
+  # and gets data/<region>/raw and data/<region>/processed automatically.
+  raw: data/raw
+  processed: data/processed
 
 window:
-  start: "2017-01-01"
-  end: "2024-12-31"
-  # FR-5.1: holdout is within-season (train N-1 seasons, test the most
-  # recent), not a random split.
-
-season:
-  # Fire season per INDIA.md 2.2 fact-check: Feb-May state-wide, not a
-  # Uttarakhand-specific window. This is the days-since-onset anchor.
-  dry_season_onset_month: 2
-  dry_season_onset_day: 1
+  # Extended to the 2026 season (FIRMS standard processing reaches 2026-07-31). The last
+  # test season ends Jun 15, so nothing after Jun 30 can change a result.
+  end: "2026-06-30"
 
 evaluation:
-  # FR-5.2: k = a forest department's plausible daily inspection
-  # capacity. 20 cells/day is a conservative estimate of what a
-  # state-level fire-watch team could physically visit in a day.
-  precision_at_k: 20
+  # Six rolling-origin test seasons: each trains on every earlier season only.
+  test_seasons: [2021, 2022, 2023, 2024, 2025, 2026]
+
+season:
+  # FR-2.4: the days-since-onset anchor lives in this per-district table
+  # (single source of truth -- currently a state-wide Feb 15-Jun 15 window
+  # on every row, see docs/RISKS.md §4), joined onto cells by district.
+  calendar_csv: config/fire_calendar_uttarakhand.csv
+
+weather:
+  # Download these calendar months first (the Feb 15 - Jun 15 fire season
+  # feeds training and evaluation; other months only fill the weather file).
+  priority_months: [2, 3, 4, 5, 6]
+
+static_layers:
+  osm:
+    # State-level extract from openstreetmap.fr (~33 MB vs Geofabrik's 335 MB
+    # central-zone file, same data). Clipped at the state border, so roads just
+    # across it (UP/Himachal/Nepal) are absent: distances in border cells are
+    # upper bounds -- a named limitation, not a bug.
+    pbf_url: https://download.openstreetmap.fr/extracts/asia/india/uttarakhand-latest.osm.pbf
+    state_name: Uttarakhand  # admin_level=4 boundary the grid is clipped to

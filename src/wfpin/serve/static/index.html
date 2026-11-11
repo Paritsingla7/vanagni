@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vanagni — tomorrow's forest-fire list for Uttarakhand</title>
+  <meta name="description" content="Every 5 km patch of Uttarakhand's forest, ranked by how likely a satellite is to see it burn tomorrow, and checked against the fires that followed.">
+  <link rel="preconnect" href="https://api.fontshare.com">
+  <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
+  <link href="https://api.fontshare.com/v2/css?f[]=erode@400,500,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <nav class="topbar" aria-label="Main">
+    <a class="brand" href="#about">Vanagni</a>
+    <div class="links">
+      <a href="#map">Risk map</a>
+      <a href="#ablation">Results</a>
+      <a href="#methodology">Method</a>
+    </div>
+  </nav>
+
+  <main>
+    <!-- 0. The bulletin (landing) ------------------------------------------------------>
+    <section id="screen-about" class="screen landing">
+
+      <header class="hero">
+        <div class="hero-type">
+          <h1>Tomorrow's list</h1>
+          <p class="hero-lead">Every 5&nbsp;km patch of Uttarakhand's forest, ranked by how likely
+            a satellite is to see it burn tomorrow, then checked against the fires that followed.</p>
+        </div>
+        <div class="folders">
+          <a class="folder" href="#methodology" style="--i:0;--tab:6%">
+            <span class="tab">Method</span></a>
+          <a class="folder" href="#ablation" style="--i:1;--tab:28%">
+            <span class="tab">Results</span></a>
+          <a class="folder" href="#bulletin" style="--i:2;--tab:50%">
+            <span class="tab">Today's sheet</span></a>
+          <div class="folder front" style="--i:3;--tab:72%">
+            <span class="tab">Risk map</span>
+            <div class="front-body">
+              <div>
+                <a class="btn" href="#map">Open the risk map</a>
+                <p><span data-fill="seasons-cap">Six fire seasons, 2021 to 2026</span>, one day at a time. Each day's ranking was made
+                  by a model that had only seen earlier years.</p>
+              </div>
+              <figure class="plate">
+                <img src="/static/img/himalaya-indian.jpg" width="1800" height="1181"
+                     alt="Survey of India atlas sheet from 1894 showing the hills of Kumaon and Garhwal in fine hachures">
+              </figure>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="intro" aria-labelledby="q-head">
+        <div class="intro-top">
+          <h2 id="q-head">The question</h2>
+          <p class="intro-note">Almost every forest fire here is lit by people. So does knowing
+            where people are, the roads, villages and fields, predict tomorrow's fires better
+            than the weather does?</p>
+        </div>
+        <div class="facts" id="facts">
+          <div class="fact"><span class="fact-n">…</span><span class="fact-l">Loading the results</span></div>
+        </div>
+        <p class="verdict" id="verdict"></p>
+        <figure class="intro-photo">
+          <img src="/static/img/chir-pine.jpg" width="1800" height="1350" loading="lazy"
+               alt="Chir pine trunks felled by a forest fire lying across a burnt slope in Uttarakhand, May 2016">
+          <figcaption>Chir pine felled by fire, Uttarakhand, May 2016.</figcaption>
+        </figure>
+      </section>
+
+      <section class="bulletin" id="bulletin" aria-labelledby="b-head">
+        <img class="bulletin-bg" src="/static/img/misty-chir.jpg" width="1800" height="1043"
+             loading="lazy" alt="">
+        <div class="bulletin-copy">
+          <h2 id="b-head">Inspection sheet</h2>
+          <p>A forest-watch team can visit about twenty places in a day. Pick any day of the <span data-fill="seasons-n">six</span> test seasons: this is the list the model would have handed them the evening before,
+            and what the satellite saw the next day.</p>
+          <div class="day-picker">
+            <button type="button" class="step" id="b-prev" aria-label="Previous day">Earlier</button>
+            <label><span class="sr">Day</span><input type="date" id="b-date"></label>
+            <button type="button" class="step" id="b-next" aria-label="Next day">Later</button>
+          </div>
+        </div>
+        <article class="sheet" id="sheet" aria-live="polite">
+          <header class="sheet-head">
+            <p class="sheet-title">Vanagni field sheet, Uttarakhand</p>
+            <p class="sheet-date" id="sheet-date">Loading…</p>
+          </header>
+          <ol class="sheet-rows" id="sheet-rows"></ol>
+          <p class="sheet-foot" id="sheet-foot"></p>
+        </article>
+      </section>
+
+      <section class="ledger" aria-labelledby="l-head">
+        <h2 id="l-head"><span>What each layer</span> adds</h2>
+        <div class="ledger-rows" id="ledger"></div>
+        <p class="ledger-note">PR-AUC, averaged over the <span data-fill="seasons-n">six</span> test seasons: how well a ranking puts
+          the cells that burn at the top. Ranking at random would score about 0.02, the share of
+          cells that burn on a given day.</p>
+      </section>
+
+      <section class="moments" aria-labelledby="m-head">
+        <div class="moments-top">
+          <h2 id="m-head">From hotspot to list</h2>
+          <div class="moments-btns">
+            <button type="button" class="sq" id="m-back" aria-label="Scroll back">←</button>
+            <button type="button" class="sq" id="m-fwd" aria-label="Scroll forward">→</button>
+          </div>
+        </div>
+        <div class="progress"><span id="m-bar"></span></div>
+        <ol class="moments-row" id="moments">
+          <li style="--gap:96px">
+            <h3>Every hotspot from space</h3>
+            <p><span data-fill="raw">397,346</span> heat detections over the state from NASA's VIIRS sensor, <span data-fill="window">2017 to 2026</span>, each
+              375&nbsp;m across.</p>
+            <img src="/static/img/fire-line.jpg" width="1800" height="1350" loading="lazy"
+                 alt="A cleared fire line between burnt forest floor in Ramnagar forest division">
+          </li>
+          <li style="--gap:32px">
+            <h3>Keep only forest fire</h3>
+            <p>Farm burning, kilns and weak detections are removed by four filters. <span data-fill="kept">104,440</span>
+              detections remain.</p>
+            <img src="/static/img/uttarakhand-pine.jpg" width="1800" height="1013" loading="lazy"
+                 alt="A mountain road winding below a hillside of burnt pine in Uttarakhand">
+          </li>
+          <li style="--gap:128px">
+            <h3>Cut the state into cells</h3>
+            <p>A 5&nbsp;km grid: <span data-fill="cells">1,950</span> cells with enough forest to burn, followed for <span data-fill="days">3,468</span>
+              days.</p>
+            <img src="/static/img/himalaya-indian.jpg" width="1800" height="1181" loading="lazy"
+                 alt="Detail of an 1894 Survey of India atlas sheet of the Kumaon hills">
+          </li>
+          <li style="--gap:64px">
+            <h3>Add what was known that day</h3>
+            <p>Weather, recent fires, slope and fuel, roads and villages. Nothing from tomorrow:
+              automated tests fail if any feature could see it.</p>
+            <img src="/static/img/resin-collection.jpg" width="1800" height="1350" loading="lazy"
+                 alt="A chir pine tapped for resin beside other pines in Uttarakhand">
+          </li>
+          <li style="--gap:112px">
+            <h3>Rank tomorrow</h3>
+            <p>A gradient-boosted tree model, trained only on earlier seasons, orders every cell
+              for the next day.</p>
+            <img src="/static/img/map-ui.png" width="1440" height="1000" loading="lazy"
+                 alt="The Vanagni risk map: blue cells ranked by risk with orange dots where fire was detected">
+          </li>
+          <li style="--gap:48px">
+            <h3>Score against what burned</h3>
+            <p>Four seasons held out one at a time, intervals from resampled weeks, and a test on
+              places the model never saw.</p>
+            <img src="/static/img/chir-pine.jpg" width="1800" height="1350" loading="lazy"
+                 alt="Burnt ground and fallen pine after a forest fire">
+          </li>
+        </ol>
+      </section>
+
+      <section class="sources" aria-labelledby="s-head">
+        <div class="card-list">
+          <h2 id="s-head">Built from open data</h2>
+          <p>NASA FIRMS&nbsp;· Copernicus ERA5-Land&nbsp;· NASA SRTM&nbsp;· ESA WorldCover&nbsp;·
+            OpenStreetMap&nbsp;· Forest Survey of India&nbsp;· Canadian Fire Weather Index</p>
+          <p class="card-small">Nothing here is a probability, an official warning or a claim
+            about who lights fires. It is one state, <span data-fill="seasons-n">six</span> seasons and one research question.</p>
+        </div>
+      </section>
+
+      <section class="reply">
+        <p class="reply-note">The finding is a negative one, and that is the useful part: the
+          evaluation was built so that it could have come out the other way.</p>
+        <div class="reply-card">
+          <h2>See it day by day</h2>
+          <p>Compare the ranking with the fires that followed, on any of <span id="n-days">the</span> test days.</p>
+          <a class="bar-btn" href="#map">Open the risk map</a>
+        </div>
+      </section>
+
+      <footer class="back">
+        <div class="back-card">
+          <div>
+            <p class="signoff">Read the method</p>
+            <p>How the label was built, how leakage was ruled out, and what this study cannot
+              say, are all on the Method page. The code and the written report are on GitHub.</p>
+          </div>
+          <div class="address">
+            <figure class="stamp"><img src="/static/img/resin-collection.jpg" width="1800" height="1350"
+              loading="lazy" alt="A resin-tapped chir pine"></figure>
+            <a href="#methodology">Method and limitations</a>
+            <a href="#ablation">Full results with intervals</a>
+            <a href="#map">The risk map</a>
+            <a href="https://github.com/Paritsingla7/vanagni">Source on GitHub</a>
+          </div>
+          <p class="credits">Pictures: <a href="https://commons.wikimedia.org/wiki/File:Chir_pine_trees_felled_by_fire_.jpg">“Chir pine trees felled by fire”</a> by Ramwik, <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Fire_line_Ramnagar_FD_AJT_Johnsingh_P1100623.JPG">“Fire line Ramnagar FD”</a> by A. J. T. Johnsingh, WWF-India and NCF, <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Resin_Collection_from_Chir_Pine_trees_in_Uttarakhand,_India_.jpg">“Resin collection from chir pine trees in Uttarakhand”</a> by Ramwik, <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Misty_Chir_Pine_woods_in_Ranikhet.jpg">“Misty chir pine woods in Ranikhet”</a> by Harshit SR, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Himalaya,_Indian_Atlas,_sheet_66_(15219000),_cropped.jpg">“Himalaya, Indian Atlas, sheet 66”</a>, Survey of India, public domain; <a href="https://commons.wikimedia.org/wiki/File:Uttarakhand_Pine_Forest.jpg">“Uttarakhand pine forest”</a> by Sridhar Rao, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>. All via Wikimedia Commons.</p>
+        </div>
+      </footer>
+    </section>
+
+    <!-- 1. Risk Map ---------------------------------------------------------------------->
+    <section id="screen-map" class="screen app" hidden>
+      <div class="app-head">
+        <h1>Risk map</h1>
+        <div class="controls">
+          <label>Season <select id="season"></select></label>
+          <label>Date <input type="date" id="date"></label>
+          <label class="toggle"><input type="checkbox" id="show-fires">
+            Show the fires that followed</label>
+          <span id="map-status" class="status" aria-live="polite"></span>
+        </div>
+      </div>
+      <div id="map-canvas" data-ui></div>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <!-- 2. Results ----------------------------------------------------------------------->
+    <section id="screen-ablation" class="screen app" hidden>
+      <h1>What each feature family adds</h1>
+      <div id="ablation-body"><p class="status">Loading…</p></div>
+    </section>
+
+    <!-- 3. Method ------------------------------------------------------------------------>
+    <section id="screen-methodology" class="screen app" hidden>
+      <h1>Method</h1>
+      <div id="methodology-body"><p class="status">Loading…</p></div>
+    </section>
+  </main>
+
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
