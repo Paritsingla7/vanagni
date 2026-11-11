@@ -274,6 +274,33 @@ def date_gaps(dates: pd.Series) -> list[dict]:
             for a, b in zip(starts, ends, strict=True)]
 
 
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+          "September", "October", "November", "December"]
+
+
+def known_limitations(config: dict) -> list[str]:
+    """The methodology page's limits: the ones every region shares, then the region's own
+    (`region.known_limitations` in its config), so no state's caveats leak into another's."""
+    years = f'{config["window"]["start"][:4]}-{config["window"]["end"][:4]}'
+    month, day = config["fwi"]["restart"]
+    return [
+        "Weather resolution (ERA5-Land, ~9-11 km) is coarser than the 5 km fire grid: "
+        "neighbouring cells share one weather sample.",
+        f"Road/settlement distances come from today's OpenStreetMap applied to {years}; "
+        "roads built in the window are treated as always present.",
+        "The OSM extract stops at the state border, so distances in border cells are upper "
+        "bounds.",
+        "Model scores are not calibrated probabilities (class weighting inflates them); "
+        "they are meant for ranking cells, which is how precision@k uses them.",
+        "WorldCover (2021) has a single tree-cover class: forest types are not distinguished.",
+        "The FWI baseline uses the original 46 N day-length tables (no latitude adjustment), "
+        "local-noon ERA5-Land values (mean of the 11:30 and 12:30 IST hours) and an annual "
+        f"{MONTHS[month - 1]} {day} restart of its moisture codes; an operational system would "
+        "tune these.",
+        *config["region"].get("known_limitations", []),
+    ]
+
+
 def build_methodology(config: dict, leakage: dict | None) -> dict:
     p = paths(config)
     fire = json.loads((p.raw / "fire/manifest.json").read_text())
@@ -283,7 +310,6 @@ def build_methodology(config: dict, leakage: dict | None) -> dict:
     weather = p.processed / "weather_daily.parquet"
     weather_dates = pd.read_parquet(weather, columns=["date"])["date"]
     b = config["region"]["bbox"]
-    years = f'{config["window"]["start"][:4]}-{config["window"]["end"][:4]}'
     return {
         "generated_at": date.today().isoformat(),
         "data_sources": [
@@ -303,24 +329,7 @@ def build_methodology(config: dict, leakage: dict | None) -> dict:
                                 "day d+1", "filter_steps": panel["detection_filter_steps"],
                   "in_season_base_rate": panel["in_season_base_rate"]},
         "leakage_tests": leakage or {n: {"status": "not_run"} for n in LEAKAGE_TESTS},
-        "known_limitations": [
-            "Weather resolution (ERA5-Land, ~9-11 km) is coarser than the 5 km fire grid: "
-            "neighbouring cells share one weather sample.",
-            "Uttarakhand only: no test of generalisation to another state's fire regime.",
-            "The fire calendar is one state-wide window (Feb 15 - Jun 15); no district-level "
-            "source was found, so the human-calendar part of the hypothesis is not tested.",
-            f"Road/settlement distances come from today's OpenStreetMap applied to {years}; "
-            "roads built in the window (e.g. the Char Dham highway) are treated as always present.",
-            "The OSM extract stops at the state border, so distances in border cells are upper "
-            "bounds.",
-            "Model scores are not calibrated probabilities (class weighting inflates them); "
-            "they are meant for ranking cells, which is how precision@k uses them.",
-            "WorldCover (2021) has a single tree-cover class: chir pine is not distinguished "
-            "from other forest.",
-            "The FWI baseline uses the original 46 N day-length tables (no latitude adjustment), "
-            "local-noon ERA5-Land values (mean of the 11:30 and 12:30 IST hours) and an annual "
-            "January 1 restart of its moisture codes; an operational system would tune these.",
-        ],
+        "known_limitations": known_limitations(config),
     }
 
 
