@@ -230,7 +230,11 @@ def load_panel(path: Path) -> pd.DataFrame:
     feature_cols = sorted({c for cols in FAMILIES.values() for c in cols} - {CELL_BURN_RATE})
     available = set(pq.read_schema(path).names)
     rule_cols = [c for c in RULES.values() if c in available and c not in KEY_COLUMNS]
-    columns = list(dict.fromkeys(KEY_COLUMNS + feature_cols + rule_cols))  # `fwi` is both
+    # `season` decides the folds (see _season_of): without it a Nov-Jun season would be
+    # split at Jan 1 into calendar years.
+    season_col = ["season"] if "season" in available else []
+    # `fwi` is both a feature and a rule column: dict.fromkeys drops the repeat.
+    columns = list(dict.fromkeys(KEY_COLUMNS + season_col + feature_cols + rule_cols))
     return pd.read_parquet(path, columns=columns)
 
 

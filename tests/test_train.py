@@ -193,3 +193,22 @@ def test_wrapped_season_helpers_and_folds():
         # day-of-year 305 is Nov 1 in common years and Oct 31 in leap years
         assert test["date"].min() in (pd.Timestamp(f"{season - 1}-10-31"),
                                       pd.Timestamp(f"{season - 1}-11-01"))
+
+
+def test_load_panel_keeps_the_season_column(tmp_path):
+    """folds() reads `season`; if load_panel drops it, a Nov-Jun season is silently split at
+    Jan 1 into calendar years (the bug that shipped in the first Odisha run)."""
+    from wfpin.train import load_panel
+
+    panel = pd.DataFrame({"cell_id": [0, 0], "date": pd.to_datetime(["2021-11-01", "2022-01-01"]),
+                          LABEL: pd.array([True, False], dtype="boolean"),
+                          "in_season": [True, True], "fire_today": [False, False],
+                          "season": np.array([2022, 2022], dtype="int16")})
+    for col in sorted({c for cols in FAMILIES.values() for c in cols} - {CELL_BURN_RATE}):
+        panel[col] = 0.0
+    panel.to_parquet(tmp_path / "panel.parquet")
+    loaded = load_panel(tmp_path / "panel.parquet")
+    assert loaded["season"].tolist() == [2022, 2022]
+    # an older panel without the column still loads (folds fall back to the calendar year)
+    panel.drop(columns="season").to_parquet(tmp_path / "old.parquet")
+    assert "season" not in load_panel(tmp_path / "old.parquet").columns
