@@ -18,11 +18,46 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-async function getJSON(url) {
+async function fetchJSON(url) {
   const res = await fetch(url);
   const body = await res.json();
   if (!res.ok) throw new Error(body.message || `${res.status}`);
   return body;
+}
+
+// Static hosting (the exported site, e.g. on Vercel): no server, so the same pre-computed
+// files are read directly. `wfpin.serve.export` sets data-static on <html>; the Flask app
+// never does, so it keeps calling its /api endpoints unchanged.
+const STATIC = document.documentElement.dataset.static === "1";
+const staticCache = {};
+const cached = (url) => (staticCache[url] ||= fetchJSON(url).catch((e) => {
+  delete staticCache[url]; throw e;
+}));
+
+async function staticRisk(day) {
+  const index = await cached("/data/risk/index.json");
+  if (!index.ranges.some((r) => r.start <= day && day <= r.end)) {
+    const valid = index.ranges.map((r) => `${r.start} to ${r.end}`).join(", ");
+    throw new Error(`No prediction exists for ${day}. Valid dates: ${valid}.`);
+  }
+  const [grid, payload] = await Promise.all([cached("/data/risk/grid.geojson"),
+                                             fetchJSON(`/data/risk/${day}.json`)]);
+  const geometry = grid._byId ||= Object.fromEntries(
+    grid.features.map((f) => [String(f.properties.cell_id), f.geometry]));
+  return { type: "FeatureCollection", date: payload.date,
+           features: Object.entries(payload.cells).map(([cid, [r, y]]) => ({
+             type: "Feature", geometry: geometry[cid],
+             properties: { cell_id: Number(cid), risk: r, fire_next_day: y } })) };
+}
+
+async function getJSON(url) {
+  if (!STATIC) return fetchJSON(url);
+  const [path, query] = url.split("?");
+  if (path === "/api/ablation") return cached("/data/ablation.json");
+  if (path === "/api/methodology") return cached("/data/methodology.json");
+  if (path === "/api/dates") return cached("/data/risk/index.json");
+  if (path === "/api/risk") return staticRisk(new URLSearchParams(query).get("date") || "");
+  throw new Error(`No static file for ${path}`);
 }
 
 function showError(target, err) {
@@ -62,8 +97,11 @@ window.addEventListener("hashchange", route);
 
 // ---- 0. about: result at a glance (computed from the real results, never typed in) ------
 const signed = (x) => `${x >= 0 ? "+" : ""}${fmt(x)}`;
+// Seasons with a lift at the precision shown (3 dp): +0.0003 is not a lift anyone could see.
+const positiveSeasons = (xs) => xs.filter((x) => Number(x.toFixed(3)) > 0).length;
 
 async function initAbout() {
+  fillCopy();
   initMoments();
   initReveal();
   let a;
@@ -76,7 +114,7 @@ async function initAbout() {
   const human = cmp("human_vs_fuel"), weather = cmp("weather_lift"), fwi = cmp("full_model_vs_fwi");
   const h = human.delta_pr_auc, w = weather.delta_pr_auc;
   const seasons = Object.values(human.delta_pr_auc_per_season);
-  const up = seasons.filter((x) => x > 0).length;
+  const up = positiveSeasons(seasons);
   const fact = (n, label) => el("div", { class: "fact reveal" },
     el("span", { class: "fact-n" }, n), el("span", { class: "fact-l" }, label));
   $("facts").replaceChildren(
@@ -108,6 +146,31 @@ async function initAbout() {
   }));
   initReveal();
   initBulletin();
+}
+
+// ---- counts in the page copy, filled from the same files as everything else -------------
+const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+const fill = (key, text) => document.querySelectorAll(`[data-fill="${key}"]`)
+  .forEach((n) => { n.textContent = text; });
+
+async function fillCopy() {
+  try {
+    const [index, m] = await Promise.all([getJSON("/api/dates"), getJSON("/api/methodology")]);
+    const seasons = index.ranges.map((r) => r.season);
+    const n = WORDS[seasons.length] || String(seasons.length);
+    fill("seasons-n", n);
+    fill("seasons-cap", `${n[0].toUpperCase()}${n.slice(1)} fire seasons, ${seasons[0]} to ${seasons.at(-1)}`);
+    const steps = Object.values(m.label?.filter_steps || {});
+    const nf = (x) => Number(x).toLocaleString("en-GB");
+    if (steps.length) { fill("raw", nf(steps[0])); fill("kept", nf(steps.at(-1))); }
+    if (m.grid?.cells_scored) fill("cells", nf(m.grid.cells_scored));
+    const fire = (m.data_sources || []).find((d) => /FIRMS/.test(d.name));
+    const weather = (m.data_sources || []).find((d) => /ERA5/.test(d.name));
+    if (fire?.window) fill("window", `${fire.window.start.slice(0, 4)} to ${fire.window.end.slice(0, 4)}`);
+    if (fire?.window && weather?.window) {   // the panel runs from the window start to the last weather day
+      fill("days", nf(Math.round((Date.parse(weather.window.end) - Date.parse(fire.window.start)) / 864e5) + 1));
+    }
+  } catch (e) { /* the written defaults stay */ }
 }
 
 // ---- the live inspection sheet: the real top 20 for any test day -----------------------
@@ -410,7 +473,7 @@ async function initAblation() {
         `(95% CI ${ci(human.delta_pr_auc_ci)}).`;
     const weather = a.comparisons.find((c) => c.name === "weather_lift");
     const perSeason = Object.values(human.delta_pr_auc_per_season);
-    const positive = perSeason.filter((x) => x > 0).length;
+    const positive = positiveSeasons(perSeason);
     const context = (weather ? ` For comparison, adding weather changed it by ` +
       `${weather.delta_pr_auc >= 0 ? "+" : ""}${fmt(weather.delta_pr_auc)}.` : "") +
       ` The human-proximity change was positive in ${positive} of ${perSeason.length} test seasons.`;
