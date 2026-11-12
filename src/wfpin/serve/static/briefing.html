@@ -97,8 +97,9 @@
       <div class="bf-body">
         <p class="bf-num">03</p>
         <h2>The answer: no</h2>
-        <p class="bf-p">Weather adds far more than human proximity does, in both states. The
-          human-proximity lift is close to zero and vanishes on places the model never trained on.</p>
+        <p class="bf-p">Weather adds far more than human proximity does, in both states, on
+          seasons and on places the model never trained on. The human-proximity lift is close
+          to zero.</p>
         <div class="bf-duel">
           <div class="bf-region">
             <h3>Uttarakhand <small data-v="uttarakhand.span">6 seasons, 2021–2026</small></h3>
@@ -108,26 +109,25 @@
               <div><dt>Human proximity adds</dt><dd data-v="uttarakhand.human">+0.003</dd>
                 <span class="bf-ci" data-v="uttarakhand.human_ci">CI 0.001 – 0.004</span></div>
               <div><dt>Human, on unseen places</dt><dd data-v="uttarakhand.human_spatial">−0.002</dd>
-                <span class="bf-ci">no detectable difference</span></div>
+                <span class="bf-ci" data-v="uttarakhand.human_spatial_note">no detectable difference</span></div>
             </dl>
-            <p class="bf-ratio">Weather ≈ <strong data-v="uttarakhand.ratio">13×</strong> the human lift</p>
+            <p class="bf-ratio" data-ratio="uttarakhand">Weather ≈ <strong>13×</strong> the human lift</p>
           </div>
           <div class="bf-region">
             <h3>Odisha <small data-v="odisha.span">4 seasons, 2021–2024</small></h3>
             <dl>
-              <div><dt>Weather adds</dt><dd data-v="odisha.weather">+0.024</dd>
-                <span class="bf-ci" data-v="odisha.weather_ci">CI 0.005 – 0.035</span></div>
-              <div><dt>Human proximity adds</dt><dd data-v="odisha.human">+0.002</dd>
-                <span class="bf-ci" data-v="odisha.human_ci">CI 0.000 – 0.003</span></div>
-              <div><dt>Human, on unseen places</dt><dd data-v="odisha.human_spatial">−0.002</dd>
-                <span class="bf-ci">no detectable difference</span></div>
+              <div><dt>Weather adds</dt><dd data-v="odisha.weather">+0.022</dd>
+                <span class="bf-ci" data-v="odisha.weather_ci">CI 0.007 – 0.034</span></div>
+              <div><dt>Human proximity adds</dt><dd data-v="odisha.human">+0.0004</dd>
+                <span class="bf-ci" data-v="odisha.human_ci">CI −0.001 – 0.002</span></div>
+              <div><dt>Human, on unseen places</dt><dd data-v="odisha.human_spatial">+0.006</dd>
+                <span class="bf-ci" data-v="odisha.human_spatial_note">small but real; weather adds +0.044</span></div>
             </dl>
-            <p class="bf-ratio">Weather ≈ <strong data-v="odisha.ratio">11×</strong> the human lift</p>
+            <p class="bf-ratio" data-ratio="odisha">Human lift <strong>not detectable</strong></p>
           </div>
         </div>
         <p class="bf-small">Numbers are the change in PR-AUC when a feature family is added
-          (explained below), with 95% intervals. Odisha's are initial results; a further run
-          is in progress.</p>
+          (explained below), with 95% intervals.</p>
         <div class="bf-cols bf-cols-2">
           <div>
             <h3>What this does <em>not</em> mean</h3>
@@ -379,7 +379,7 @@
           <li class="done"><span class="st">Done</span>
             <h3>The research result</h3>
             <p>Which ingredients predict next-day fire: history and weather, not proximity.
-              Two states, a backtest, the live demo. Odisha's further run is in progress.</p></li>
+              Two states, a backtest, the live demo.</p></li>
           <li class="now"><span class="st">Next step</span>
             <h3>Forward proof</h3>
             <p>Score real tomorrows. Swap reanalysis weather (only known afterwards) for the
@@ -407,11 +407,11 @@
         <h2>At a glance</h2>
         <div class="bf-glance">
           <div><b data-v="uttarakhand.full">0.190</b><span>full model PR-AUC, Uttarakhand</span></div>
-          <div><b data-v="odisha.full">0.219</b><span>full model PR-AUC, Odisha</span></div>
+          <div><b data-v="odisha.full">0.218</b><span>full model PR-AUC, Odisha</span></div>
           <div><b data-v="uttarakhand.persist">0.075</b><span>persistence rule, Uttarakhand</span></div>
           <div><b data-v="uttarakhand.p20">2–3</b><span>of the top 20 cells burn next day (vs under 1 at random)</span></div>
           <div><b data-v="uttarakhand.pos">26,209</b><span>fire cell-days tested, Uttarakhand</span></div>
-          <div><b data-v="odisha.pos">60,418</b><span>fire cell-days tested, Odisha</span></div>
+          <div><b data-v="odisha.pos">60,720</b><span>fire cell-days tested, Odisha</span></div>
           <div><b data-v="uttarakhand.positive_seasons">2 of 6</b><span>seasons with any human-proximity lift (2021, 2022)</span></div>
           <div><b>0.02</b><span>PR-AUC of a random ranking (≈ the daily burn rate)</span></div>
         </div>

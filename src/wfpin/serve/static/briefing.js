@@ -17,13 +17,39 @@ const fileFor = (rid, name) => STATIC
   : `/api/${name}?region=${rid}`;
 
 const f3 = (x) => Number(x).toFixed(3).replace("-", "−");
-const signed = (x) => `${x >= 0 ? "+" : ""}${f3(x)}`;
+// A lift below 0.001 would print as "+0.000"; show it to four places instead.
+const fLift = (x) => Number(x).toFixed(x !== 0 && Math.abs(x) < 0.001 ? 4 : 3).replace("-", "−");
+const signed = (x) => `${x >= 0 ? "+" : ""}${fLift(x)}`;
 const nf = (x) => Number(x).toLocaleString("en-GB");
 const ciText = (ci) => `CI ${f3(ci[0])} – ${f3(ci[1])}`;
 const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight"];
 
 function put(key, text) {
   document.querySelectorAll(`[data-v="${key}"]`).forEach((n) => { n.textContent = text; });
+}
+
+// "Weather ≈ 13× the human lift", or, when the human lift's interval includes zero, a ratio
+// would be meaningless (dividing by noise), so say so instead.
+function ratioLine(rid, w, h) {
+  const box = document.querySelector(`[data-ratio="${rid}"]`);
+  if (!box) return;
+  const strong = document.createElement("strong");
+  if (h.delta_pr_auc_ci[0] > 0) {
+    strong.textContent = `${Math.round(w.delta_pr_auc / h.delta_pr_auc)}×`;
+    box.replaceChildren("Weather ≈ ", strong, " the human lift");
+  } else {
+    strong.textContent = "not detectable";
+    box.replaceChildren("Human lift ", strong);
+  }
+}
+
+// What the spatial-holdout human lift means, read from its interval.
+function spatialNote(sp) {
+  const [lo, hi] = sp.human.delta_pr_auc_ci;
+  if (lo > 0) return sp.weather ? `small but real; weather adds ${signed(sp.weather.delta_pr_auc)}`
+                                : "small but real";
+  if (hi < 0) return "slightly worse";
+  return "no detectable difference";
 }
 
 const STAGES = [["1", "Persistence"], ["2", "+ fire history"], ["3", "+ weather"],
@@ -87,9 +113,13 @@ async function region(rid) {
   put(`${rid}.weather_ci`, ciText(w.delta_pr_auc_ci));
   put(`${rid}.human`, signed(h.delta_pr_auc));
   put(`${rid}.human_ci`, ciText(h.delta_pr_auc_ci));
-  if (h.delta_pr_auc > 0) put(`${rid}.ratio`, `${Math.round(w.delta_pr_auc / h.delta_pr_auc)}×`);
-  const sp = a.spatial_holdout?.status === "ok" ? cmp(a.spatial_holdout.comparisons, "human_vs_fuel") : null;
-  if (sp) put(`${rid}.human_spatial`, signed(sp.delta_pr_auc));
+  ratioLine(rid, w, h);
+  const spc = a.spatial_holdout?.status === "ok" ? a.spatial_holdout.comparisons : null;
+  const sp = spc && { human: cmp(spc, "human_vs_fuel"), weather: cmp(spc, "weather_lift") };
+  if (sp?.human) {
+    put(`${rid}.human_spatial`, signed(sp.human.delta_pr_auc));
+    put(`${rid}.human_spatial_note`, spatialNote(sp));
+  }
   put(`${rid}.full`, f3(stage["4b"].pr_auc));
   put(`${rid}.fwi`, f3(stage.fwi.pr_auc));
   put(`${rid}.persist`, f3(stage["1"].pr_auc));
