@@ -135,6 +135,13 @@ def create_app(regions: dict[str, Path] | Path, notes: dict[str, str] | None = N
     def index():
         return send_from_directory(STATIC_DIR, "index.html")
 
+    @app.get("/briefing")
+    def briefing():
+        """The presenter's walk-through: unlinked, and not for search engines."""
+        response = send_from_directory(STATIC_DIR, "briefing.html")
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return response
+
     @app.get("/static/<path:name>")
     def static_files(name: str):
         return send_from_directory(STATIC_DIR, name)

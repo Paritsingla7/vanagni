@@ -53,6 +53,9 @@ def test_frontend_is_served(data_dir):
     client = create_app(data_dir).test_client()
     assert b"Vanagni" in client.get("/").data
     assert client.get("/static/app.js").status_code == 200
+    r = client.get("/briefing")
+    assert r.status_code == 200 and b"briefing" in r.data
+    assert r.headers["X-Robots-Tag"] == "noindex, nofollow"
 
 
 def test_regions_are_listed_and_selected(data_dir, tmp_path):
@@ -84,7 +87,8 @@ def test_static_export_mirrors_the_api(data_dir, tmp_path):
     out = tmp_path / "site"
     info = export_site({"uttarakhand": data_dir}, out)
     assert info == {"uttarakhand": {"days": 1, "seasons": [2024]}}
-    assert 'data-static="1"' in (out / "index.html").read_text()
+    for page in ("index.html", "briefing.html"):
+        assert 'data-static="1"' in (out / page).read_text(), page
     assert json.loads((out / "data" / "regions.json").read_text()) == {
         "default": "uttarakhand", "regions": [{"id": "uttarakhand", "name": "Uttarakhand"}]}
     region = out / "data" / "uttarakhand"
