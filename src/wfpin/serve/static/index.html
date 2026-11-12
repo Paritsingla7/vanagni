@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Vanagni — tomorrow's forest-fire list for Uttarakhand</title>
-  <meta name="description" content="Every 5 km patch of Uttarakhand's forest, ranked by how likely a satellite is to see it burn tomorrow, and checked against the fires that followed.">
+  <title>Vanagni — tomorrow's forest-fire list for Uttarakhand and Odisha</title>
+  <meta name="description" content="Every 5 km patch of forest in Uttarakhand and Odisha, ranked by how likely a satellite is to see it burn tomorrow, and checked against the fires that followed.">
   <link rel="preconnect" href="https://api.fontshare.com">
   <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
   <link href="https://api.fontshare.com/v2/css?f[]=erode@400,500,600&display=swap" rel="stylesheet">
@@ -31,8 +31,9 @@
       <header class="hero">
         <div class="hero-type">
           <h1>Tomorrow's list</h1>
-          <p class="hero-lead">Every 5&nbsp;km patch of Uttarakhand's forest, ranked by how likely
-            a satellite is to see it burn tomorrow, then checked against the fires that followed.</p>
+          <p class="hero-lead">Every 5&nbsp;km patch of forest in <span data-fill="states">Uttarakhand
+            and Odisha</span>, ranked by how likely a satellite is to see it burn tomorrow, then
+            checked against the fires that followed.</p>
         </div>
         <div class="folders">
           <a class="folder" href="#methodology" style="--i:0;--tab:6%">
@@ -46,8 +47,9 @@
             <div class="front-body">
               <div>
                 <a class="btn" href="#map">Open the risk map</a>
-                <p><span data-fill="seasons-cap">Six fire seasons, 2021 to 2026</span>, one day at a time. Each day's ranking was made
-                  by a model that had only seen earlier years.</p>
+                <p><span data-fill="seasons-cap">Six fire seasons in Uttarakhand and four in
+                  Odisha</span>, one day at a time. Each day's ranking was made by a model that
+                  had only seen earlier years.</p>
               </div>
               <figure class="plate">
                 <img src="/static/img/himalaya-indian.jpg" width="1800" height="1181"
@@ -61,9 +63,10 @@
       <section class="intro" aria-labelledby="q-head">
         <div class="intro-top">
           <h2 id="q-head">The question</h2>
-          <p class="intro-note">Almost every forest fire here is lit by people. So does knowing
+          <p class="intro-note">Almost every forest fire in India is lit by people. So does knowing
             where people are, the roads, villages and fields, predict tomorrow's fires better
-            than the weather does?</p>
+            than the weather does? Tested in two states with different forests and different
+            fire seasons: Himalayan chir pine, and Odisha's sal.</p>
         </div>
         <div class="facts" id="facts">
           <div class="fact"><span class="fact-n">…</span><span class="fact-l">Loading the results</span></div>
@@ -81,8 +84,10 @@
              loading="lazy" alt="">
         <div class="bulletin-copy">
           <h2 id="b-head">Inspection sheet</h2>
-          <p>A forest-watch team can visit about twenty places in a day. Pick any day of the <span data-fill="seasons-n">six</span> test seasons: this is the list the model would have handed them the evening before,
+          <p>A forest-watch team can visit about twenty places in a day. Pick a state and any
+            test day: this is the list the model would have handed them the evening before,
             and what the satellite saw the next day.</p>
+          <div class="region-switch sheet-switch" id="sheet-switch" role="group" aria-label="State" hidden></div>
           <div class="day-picker">
             <button type="button" class="step" id="b-prev" aria-label="Previous day">Earlier</button>
             <label><span class="sr">Day</span><input type="date" id="b-date"></label>
@@ -91,7 +96,7 @@
         </div>
         <article class="sheet" id="sheet" aria-live="polite">
           <header class="sheet-head">
-            <p class="sheet-title">Vanagni field sheet, Uttarakhand</p>
+            <p class="sheet-title">Vanagni field sheet, <span id="sheet-region">Uttarakhand</span></p>
             <p class="sheet-date" id="sheet-date">Loading…</p>
           </header>
           <ol class="sheet-rows" id="sheet-rows"></ol>
@@ -102,9 +107,10 @@
       <section class="ledger" aria-labelledby="l-head">
         <h2 id="l-head"><span>What each layer</span> adds</h2>
         <div class="ledger-rows" id="ledger"></div>
-        <p class="ledger-note">PR-AUC, averaged over the <span data-fill="seasons-n">six</span> test seasons: how well a ranking puts
-          the cells that burn at the top. Ranking at random would score about 0.02, the share of
-          cells that burn on a given day.</p>
+        <p class="ledger-note">PR-AUC, averaged over each state's test seasons: how well a ranking
+          puts the cells that burn at the top. Ranking at random would score about the share of
+          cells that burn on a given day, 0.01 to 0.02. The same layers, in the same order, do the
+          same work in both states.</p>
       </section>
 
       <section class="moments" aria-labelledby="m-head">
@@ -119,24 +125,24 @@
         <ol class="moments-row" id="moments">
           <li style="--gap:96px">
             <h3>Every hotspot from space</h3>
-            <p><span data-fill="raw">397,346</span> heat detections over the state from NASA's VIIRS sensor, <span data-fill="window">2017 to 2026</span>, each
-              375&nbsp;m across.</p>
+            <p><span data-fill="raw">1,764,700</span> heat detections over the <span data-fill="states-n">two</span> states from
+              NASA's VIIRS sensor, <span data-fill="window">2017 to 2026</span>, each 375&nbsp;m across.</p>
             <img src="/static/img/fire-line.jpg" width="1800" height="1350" loading="lazy"
                  alt="A cleared fire line between burnt forest floor in Ramnagar forest division">
           </li>
           <li style="--gap:32px">
             <h3>Keep only forest fire</h3>
-            <p>Farm burning, kilns and weak detections are removed by four filters. <span data-fill="kept">104,440</span>
-              detections remain.</p>
+            <p>Farm burning, kilns and weak detections are removed by four filters.
+              <span data-fill="kept">309,389</span> detections remain.</p>
             <img src="/static/img/uttarakhand-pine.jpg" width="1800" height="1013" loading="lazy"
                  alt="A mountain road winding below a hillside of burnt pine in Uttarakhand">
           </li>
           <li style="--gap:128px">
-            <h3>Cut the state into cells</h3>
-            <p>A 5&nbsp;km grid: <span data-fill="cells">1,950</span> cells with enough forest to burn, followed for <span data-fill="days">3,468</span>
-              days.</p>
-            <img src="/static/img/himalaya-indian.jpg" width="1800" height="1181" loading="lazy"
-                 alt="Detail of an 1894 Survey of India atlas sheet of the Kumaon hills">
+            <h3>Cut each state into cells</h3>
+            <p>A 5&nbsp;km grid: <span data-fill="cells">8,417</span> cells with enough forest to
+              burn, followed every day.</p>
+            <img src="/static/img/similipal-sal.jpg" width="1920" height="1440" loading="lazy"
+                 alt="A red forest road through sal trees in Similipal, Odisha">
           </li>
           <li style="--gap:64px">
             <h3>Add what was known that day</h3>
@@ -168,7 +174,8 @@
           <p>NASA FIRMS&nbsp;· Copernicus ERA5-Land&nbsp;· NASA SRTM&nbsp;· ESA WorldCover&nbsp;·
             OpenStreetMap&nbsp;· Forest Survey of India&nbsp;· Canadian Fire Weather Index</p>
           <p class="card-small">Nothing here is a probability, an official warning or a claim
-            about who lights fires. It is one state, <span data-fill="seasons-n">six</span> seasons and one research question.</p>
+            about who lights fires. It is <span data-fill="states-n">two</span> states, <span data-fill="seasons-total">ten</span> test
+            seasons and one research question.</p>
         </div>
       </section>
 
@@ -177,7 +184,8 @@
           evaluation was built so that it could have come out the other way.</p>
         <div class="reply-card">
           <h2>See it day by day</h2>
-          <p>Compare the ranking with the fires that followed, on any of <span id="n-days">the</span> test days.</p>
+          <p>Compare the ranking with the fires that followed, on any of <span id="n-days">the</span>
+            test days in either state.</p>
           <a class="bar-btn" href="#map">Open the risk map</a>
         </div>
       </section>
@@ -197,7 +205,7 @@
             <a href="#map">The risk map</a>
             <a href="https://github.com/Paritsingla7/vanagni">Source on GitHub</a>
           </div>
-          <p class="credits">Pictures: <a href="https://commons.wikimedia.org/wiki/File:Chir_pine_trees_felled_by_fire_.jpg">“Chir pine trees felled by fire”</a> by Ramwik, <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Fire_line_Ramnagar_FD_AJT_Johnsingh_P1100623.JPG">“Fire line Ramnagar FD”</a> by A. J. T. Johnsingh, WWF-India and NCF, <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Resin_Collection_from_Chir_Pine_trees_in_Uttarakhand,_India_.jpg">“Resin collection from chir pine trees in Uttarakhand”</a> by Ramwik, <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Misty_Chir_Pine_woods_in_Ranikhet.jpg">“Misty chir pine woods in Ranikhet”</a> by Harshit SR, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Himalaya,_Indian_Atlas,_sheet_66_(15219000),_cropped.jpg">“Himalaya, Indian Atlas, sheet 66”</a>, Survey of India, public domain; <a href="https://commons.wikimedia.org/wiki/File:Uttarakhand_Pine_Forest.jpg">“Uttarakhand pine forest”</a> by Sridhar Rao, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>. All via Wikimedia Commons.</p>
+          <p class="credits">Pictures: <a href="https://commons.wikimedia.org/wiki/File:Chir_pine_trees_felled_by_fire_.jpg">“Chir pine trees felled by fire”</a> by Ramwik, <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Fire_line_Ramnagar_FD_AJT_Johnsingh_P1100623.JPG">“Fire line Ramnagar FD”</a> by A. J. T. Johnsingh, WWF-India and NCF, <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Resin_Collection_from_Chir_Pine_trees_in_Uttarakhand,_India_.jpg">“Resin collection from chir pine trees in Uttarakhand”</a> by Ramwik, <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY-SA 3.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Misty_Chir_Pine_woods_in_Ranikhet.jpg">“Misty chir pine woods in Ranikhet”</a> by Harshit SR, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>; <a href="https://commons.wikimedia.org/wiki/File:Himalaya,_Indian_Atlas,_sheet_66_(15219000),_cropped.jpg">“Himalaya, Indian Atlas, sheet 66”</a>, Survey of India, public domain; <a href="https://commons.wikimedia.org/wiki/File:Uttarakhand_Pine_Forest.jpg">“Uttarakhand pine forest”</a> by Sridhar Rao, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>; <a href="https://commons.wikimedia.org/wiki/File:SIMILIPAL_FOREST_RANGE.jpg">“Similipal forest range”</a> by Rabi Narayan Udgata, <a href="https://creativecommons.org/licenses/by-sa/4.0">CC BY-SA 4.0</a>. All via Wikimedia Commons.</p>
         </div>
       </footer>
     </section>
