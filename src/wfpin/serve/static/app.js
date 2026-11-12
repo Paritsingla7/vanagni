@@ -34,14 +34,14 @@ const cached = (url) => (staticCache[url] ||= fetchJSON(url).catch((e) => {
   delete staticCache[url]; throw e;
 }));
 
-async function staticRisk(day) {
-  const index = await cached("/data/risk/index.json");
+async function staticRisk(base, day) {
+  const index = await cached(`${base}/risk/index.json`);
   if (!index.ranges.some((r) => r.start <= day && day <= r.end)) {
     const valid = index.ranges.map((r) => `${r.start} to ${r.end}`).join(", ");
     throw new Error(`No prediction exists for ${day}. Valid dates: ${valid}.`);
   }
-  const [grid, payload] = await Promise.all([cached("/data/risk/grid.geojson"),
-                                             fetchJSON(`/data/risk/${day}.json`)]);
+  const [grid, payload] = await Promise.all([cached(`${base}/risk/grid.geojson`),
+                                             fetchJSON(`${base}/risk/${day}.json`)]);
   const geometry = grid._byId ||= Object.fromEntries(
     grid.features.map((f) => [String(f.properties.cell_id), f.geometry]));
   return { type: "FeatureCollection", date: payload.date,
@@ -50,15 +50,42 @@ async function staticRisk(day) {
              properties: { cell_id: Number(cid), risk: r, fire_next_day: y } })) };
 }
 
-async function getJSON(url) {
-  if (!STATIC) return fetchJSON(url);
+// ---- regions: the landing tells one region's story (the default); the map, results and
+// method pages follow the region switch. `id` null = a server without regions (one region).
+const region = { list: [], default: null, current: null };
+const regionName = (id) => (region.list.find((r) => r.id === id) || {}).name || "";
+
+async function loadRegions() {
+  try {
+    const r = await (STATIC ? cached("/data/regions.json") : fetchJSON("/api/regions"));
+    region.list = r.regions;
+    region.default = r.default;
+  } catch (e) { return; }                       // the pages still work for a single region
+  const want = new URLSearchParams(location.hash.split("?")[1] || "").get("region");
+  region.current = region.list.some((r) => r.id === want) ? want : region.default;
+}
+
+// `rid` defaults to the switched-to region; the landing passes region.default.
+async function getJSON(url, rid = region.current) {
   const [path, query] = url.split("?");
-  if (path === "/api/ablation") return cached("/data/ablation.json");
-  if (path === "/api/methodology") return cached("/data/methodology.json");
-  if (path === "/api/dates") return cached("/data/risk/index.json");
-  if (path === "/api/risk") return staticRisk(new URLSearchParams(query).get("date") || "");
+  const params = new URLSearchParams(query);
+  if (!STATIC) {
+    if (rid) params.set("region", rid);
+    return fetchJSON(params.size ? `${path}?${params}` : path);
+  }
+  const base = rid ? `/data/${rid}` : "/data";
+  if (path === "/api/ablation") return cached(`${base}/ablation.json`);
+  if (path === "/api/methodology") return cached(`${base}/methodology.json`);
+  if (path === "/api/dates") return cached(`${base}/risk/index.json`);
+  if (path === "/api/risk") return staticRisk(base, params.get("date") || "");
   throw new Error(`No static file for ${path}`);
 }
+
+// A season that wraps the new year (Odisha's Nov-Jun) reads "2020–21"; one inside a year, "2024".
+const seasonLabel = (r) => {
+  const a = r.start.slice(0, 4), b = r.end.slice(0, 4);
+  return a === b ? String(r.season) : `${a}–${b.slice(2)}`;
+};
 
 function showError(target, err) {
   target.replaceChildren(el("p", { class: "status error" }, `Could not load: ${err.message}`));
@@ -85,6 +112,7 @@ function route() {
   document.body.classList.toggle("on-landing", key === "about");
   document.querySelectorAll(".topbar .links a").forEach((a) =>
     a.classList.toggle("active", a.getAttribute("href") === `#${key}`));
+  $("region-switch").hidden = key === "about" || region.list.length < 2;
   if (!loaded[key]) {
     loaded[key] = true;
     ({ about: initAbout, map: initMap, ablation: initAblation,
@@ -94,6 +122,34 @@ function route() {
   }
 }
 window.addEventListener("hashchange", route);
+
+// The switch: a region change re-loads whichever app screen is open, and the others on visit.
+function initRegionSwitch() {
+  const box = $("region-switch");
+  box.replaceChildren(...region.list.map((r) => {
+    const b = el("button", { type: "button", "data-region": r.id }, r.name);
+    b.addEventListener("click", () => setRegion(r.id));
+    return b;
+  }));
+  markRegion();
+}
+
+function markRegion() {
+  $("region-switch").querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.region === region.current)));
+  fill("region", regionName(region.current));
+}
+
+function setRegion(id) {
+  if (id === region.current) return;
+  region.current = id;
+  markRegion();
+  for (const key of ["map", "ablation", "methodology"]) loaded[key] = false;
+  const [screen] = (location.hash || "#about").slice(1).split("?");
+  // Keep the region in the link (shareable); a map date from the other region would not apply.
+  history.replaceState(null, "", `#${screen}?region=${id}`);
+  route();
+}
 
 // ---- 0. about: result at a glance (computed from the real results, never typed in) ------
 const signed = (x) => `${x >= 0 ? "+" : ""}${fmt(x)}`;
@@ -105,7 +161,7 @@ async function initAbout() {
   initMoments();
   initReveal();
   let a;
-  try { a = await getJSON("/api/ablation"); } catch (e) {
+  try { a = await getJSON("/api/ablation", region.default); } catch (e) {
     $("facts").replaceChildren(el("p", { class: "status" }, "Results have not been built for this run yet."));
     initBulletin();
     return;
@@ -155,7 +211,8 @@ const fill = (key, text) => document.querySelectorAll(`[data-fill="${key}"]`)
 
 async function fillCopy() {
   try {
-    const [index, m] = await Promise.all([getJSON("/api/dates"), getJSON("/api/methodology")]);
+    const [index, m] = await Promise.all([getJSON("/api/dates", region.default),
+                                       getJSON("/api/methodology", region.default)]);
     const seasons = index.ranges.map((r) => r.season);
     const n = WORDS[seasons.length] || String(seasons.length);
     fill("seasons-n", n);
@@ -189,7 +246,7 @@ const shiftDay = (iso, n) => {
 async function initBulletin() {
   const inp = $("b-date");
   let index;
-  try { index = await getJSON("/api/dates"); } catch (e) {
+  try { index = await getJSON("/api/dates", region.default); } catch (e) {
     $("sheet-date").textContent = "The risk files have not been built yet.";
     return;
   }
@@ -217,7 +274,7 @@ async function loadSheet() {
   const iso = $("b-date").value, ticket = ++bulletin.req;
   $("sheet-date").textContent = `for ${longDate(shiftDay(iso, 1))}`;
   let data;
-  try { data = await getJSON(`/api/risk?date=${iso}`); } catch (e) {
+  try { data = await getJSON(`/api/risk?date=${iso}`, region.default); } catch (e) {
     if (ticket === bulletin.req) $("sheet-foot").textContent = e.message;
     return;
   }
@@ -292,13 +349,9 @@ function rankClass(rank, n, k) {
 const classLabels = (k) => ["Lower half", "Upper half", "Top 25%", "Top 10%", "Top 5%", "Top 2%",
                             `Top ${k} cells`];
 
-async function initMap() {
-  const status = $("map-status");
-  let index;
-  try { index = await getJSON("/api/dates"); } catch (e) { showError(status.parentElement, e); return; }
-  mapState.ranges = index.ranges;
-  mapState.k = index.k || 20;
-
+// Built once; a region switch only reloads the dates and the cells (setupMap is idempotent).
+function setupMap() {
+  if (mapState.map) return;
   mapState.map = L.map("map-canvas", { zoomSnap: 0.25 }).setView([30.1, 79.2], 7);
   // A quiet gray basemap (no API key needed) so the data, not the labels, carries the picture;
   // place names go in a pane above the choropleth so they stay readable.
@@ -314,23 +367,42 @@ async function initMap() {
     .addTo(mapState.map);
 
   const seasonSel = $("season"), dateInp = $("date");
-  for (const r of mapState.ranges) seasonSel.append(el("option", { value: r.season }, String(r.season)));
-  const setRange = () => {
-    const r = mapState.ranges.find((x) => String(x.season) === seasonSel.value);
-    dateInp.min = r.start; dateInp.max = r.end;   // only dates with a prediction are selectable
-    if (!dateInp.value || dateInp.value < r.start || dateInp.value > r.end) {
-      dateInp.value = r.start;
-    }
-  };
   seasonSel.addEventListener("change", () => { setRange(); loadDate(); });
   dateInp.addEventListener("change", loadDate);
   $("show-fires").addEventListener("change", draw);
-  // Shareable deep link, e.g. #map?date=2023-04-12&fires=1
+}
+
+function setRange() {
+  const seasonSel = $("season"), dateInp = $("date");
+  const r = mapState.ranges.find((x) => String(x.season) === seasonSel.value);
+  dateInp.min = r.start; dateInp.max = r.end;   // only dates with a prediction are selectable
+  if (!dateInp.value || dateInp.value < r.start || dateInp.value > r.end) {
+    dateInp.value = r.start;
+  }
+}
+
+async function initMap() {
+  const status = $("map-status");
+  let index;
+  try { index = await getJSON("/api/dates"); } catch (e) { showError(status.parentElement, e); return; }
+  mapState.ranges = index.ranges;
+  mapState.k = index.k || 20;
+  setupMap();
+  mapState.map.invalidateSize();
+  // A new region: drop the last one's cells and zoom to the new state on the first draw.
+  mapState.layer?.remove(); mapState.fires?.remove();
+  mapState.layer = mapState.fires = mapState.data = null;
+  mapState.fitted = false;
+
+  const seasonSel = $("season"), dateInp = $("date");
+  seasonSel.replaceChildren(...mapState.ranges.map((r) =>
+    el("option", { value: r.season }, seasonLabel(r))));
+  // Shareable deep link, e.g. #map?region=odisha&date=2023-04-12&fires=1
   const want = new URLSearchParams(location.hash.split("?")[1] || "");
   const wanted = mapState.ranges.find((r) => want.get("date") >= r.start && want.get("date") <= r.end);
   seasonSel.value = (wanted || mapState.ranges[mapState.ranges.length - 1]).season;
+  dateInp.value = wanted ? want.get("date") : "";
   setRange();
-  if (wanted) dateInp.value = want.get("date");
   $("show-fires").checked = want.get("fires") === "1";
   loadDate();
 }
@@ -435,14 +507,19 @@ const STAGE_NAMES = { "1": "Persistence", "fwi": "Fire Weather Index (operationa
 
 async function initAblation() {
   const body = $("ablation-body");
-  let a;
+  let a, labels = {};
   try { a = await getJSON("/api/ablation"); } catch (e) { showError(body, e); return; }
+  try {
+    const index = await getJSON("/api/dates");
+    labels = Object.fromEntries(index.ranges.map((r) => [r.season, seasonLabel(r)]));
+  } catch (e) { /* plain season numbers */ }
+  const label = (season) => labels[season] || String(season);
 
   const rows = a.stages.map((s) => {
     const m = s.mean;
     const seasons = el("details", {}, el("summary", {}, "per season"),
       ...s.per_season.map((r) => el("div", { class: "ci" },
-        `${r.season}: PR-AUC ${fmt(r.pr_auc)} (${ci(r.pr_auc_ci)}) · ` +
+        `${label(r.season)}: PR-AUC ${fmt(r.pr_auc)} (${ci(r.pr_auc_ci)}) · ` +
         `precision@${a.k} ${fmt(r.precision_at_k)} · base rate ${fmt(r.base_rate, 4)} · ` +
         `${r.n_positive} positives`)));
     return el("tr", {},
@@ -460,7 +537,7 @@ async function initAblation() {
     el("tbody", {}, ...rows));
 
   const parts = [el("p", { class: "status" },
-    `Mean over test seasons ${a.test_seasons.join(", ")}; intervals are ${a.bootstrap.block_days}-day ` +
+    `Mean over test seasons ${a.test_seasons.map(label).join(", ")}; intervals are ${a.bootstrap.block_days}-day ` +
     `block bootstrap. Top-k is scored per day.`), table];
 
   const human = a.comparisons.find((c) => c.name === "human_vs_fuel");
@@ -607,4 +684,4 @@ async function initMethodology() {
     el("ul", {}, ...m.known_limitations.map((l) => el("li", {}, l))));
 }
 
-route();
+loadRegions().then(() => { initRegionSwitch(); route(); });

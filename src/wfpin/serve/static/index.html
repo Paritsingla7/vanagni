@@ -21,6 +21,7 @@
       <a href="#ablation">Results</a>
       <a href="#methodology">Method</a>
     </div>
+    <div class="region-switch" id="region-switch" role="group" aria-label="Region" hidden></div>
   </nav>
 
   <main>
@@ -204,7 +205,7 @@
     <!-- 1. Risk Map ---------------------------------------------------------------------->
     <section id="screen-map" class="screen app" hidden>
       <div class="app-head">
-        <h1>Risk map</h1>
+        <h1>Risk map <span class="region-name" data-fill="region"></span></h1>
         <div class="controls">
           <label>Season <select id="season"></select></label>
           <label>Date <input type="date" id="date"></label>
@@ -219,13 +220,13 @@
 
     <!-- 2. Results ----------------------------------------------------------------------->
     <section id="screen-ablation" class="screen app" hidden>
-      <h1>What each feature family adds</h1>
+      <h1>What each feature family adds <span class="region-name" data-fill="region"></span></h1>
       <div id="ablation-body"><p class="status">Loading…</p></div>
     </section>
 
     <!-- 3. Method ------------------------------------------------------------------------>
     <section id="screen-methodology" class="screen app" hidden>
-      <h1>Method</h1>
+      <h1>Method <span class="region-name" data-fill="region"></span></h1>
       <div id="methodology-body"><p class="status">Loading…</p></div>
     </section>
   </main>
