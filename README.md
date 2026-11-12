@@ -70,6 +70,9 @@ make pipeline                            # ingest → static → weather → fwi
 make serve                               # http://localhost:5000
 ```
 
+`make serve` and `make site` show every region in `REGIONS` (default: Uttarakhand and Odisha) behind
+a region switch; the landing page tells the first region's story.
+
 Every step is idempotent and resumable (`make -n pipeline` lists them in order). The slow step is
 `weather`: ERA5-Land requests wait hours in Copernicus's queue and are capped per account, so a full
 window takes days. Everything else is minutes to about an hour. `make weather-resample` uses whatever

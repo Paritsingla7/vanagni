@@ -55,19 +55,44 @@ def test_frontend_is_served(data_dir):
     assert client.get("/static/app.js").status_code == 200
 
 
+def test_regions_are_listed_and_selected(data_dir, tmp_path):
+    """Every data endpoint takes region=<id>; no region means the first one listed."""
+    other = tmp_path / "other"
+    (other / "risk").mkdir(parents=True)
+    (other / "ablation.json").write_text(json.dumps({"stages": ["odisha"]}))
+    client = create_app({"uttarakhand": data_dir, "odisha": other},
+                        notes={"odisha": "initial"}).test_client()
+    assert client.get("/api/regions").get_json() == {
+        "default": "uttarakhand",
+        "regions": [{"id": "uttarakhand", "name": "Uttarakhand"},
+                    {"id": "odisha", "name": "Odisha", "note": "initial"}]}
+    assert client.get("/api/ablation").get_json() == {"stages": []}
+    assert client.get("/api/ablation?region=odisha").get_json() == {"stages": ["odisha"]}
+    r = client.get("/api/risk?region=odisha&date=2024-04-12")   # odisha has no risk files
+    assert r.status_code == 503 and r.get_json()["error"] == "risk_not_built"
+    r = client.get("/api/dates?region=nowhere")
+    assert r.status_code == 400 and r.get_json()["error"] == "unknown_region"
+
+
 def test_static_export_mirrors_the_api(data_dir, tmp_path):
-    """The exported site carries exactly the files the API serves, and is marked static."""
+    """The exported site carries exactly the files the API serves, one folder per region,
+    and is marked static."""
     from wfpin.serve.export import export_site
 
     (data_dir / "methodology.json").write_text(json.dumps({"grid": {}}))
     (data_dir / "risk" / "2023-01-01.json").write_text("{}")  # outside every range: dropped
     out = tmp_path / "site"
-    info = export_site(data_dir, out)
-    assert info == {"days": 1, "seasons": [2024]}
+    info = export_site({"uttarakhand": data_dir}, out)
+    assert info == {"uttarakhand": {"days": 1, "seasons": [2024]}}
     assert 'data-static="1"' in (out / "index.html").read_text()
+    assert json.loads((out / "data" / "regions.json").read_text()) == {
+        "default": "uttarakhand", "regions": [{"id": "uttarakhand", "name": "Uttarakhand"}]}
+    region = out / "data" / "uttarakhand"
     for name in ("ablation.json", "methodology.json", "risk/index.json", "risk/grid.geojson",
-                 "risk/2024-04-12.json", "static/app.js", "vercel.json"):
-        assert (out / name).exists() or (out / "data" / name).exists(), name
-    assert not (out / "data" / "risk" / "2023-01-01.json").exists()
+                 "risk/2024-04-12.json"):
+        assert (region / name).exists(), name
+    for name in ("static/app.js", "vercel.json"):
+        assert (out / name).exists(), name
+    assert not (region / "risk" / "2023-01-01.json").exists()
     with pytest.raises(FileNotFoundError):
-        export_site(tmp_path / "empty", tmp_path / "site2")
+        export_site({"empty": tmp_path / "empty"}, tmp_path / "site2")

@@ -55,6 +55,24 @@ p { margin: 0; }
 body.on-landing .topbar { background: var(--night); color: var(--night-ink); }
 body.on-landing .topbar .links a { color: #a9a49b; }
 body.on-landing .topbar .links a:hover { color: var(--night-ink); }
+/* region switch (map, results, method): two pressed-state buttons, one per region */
+.region-switch { display: flex; border: 1px solid var(--ink); border-radius: 999px; overflow: hidden; }
+.region-switch[hidden] { display: none; }
+.region-switch button {
+  font: inherit; font-size: .9375rem; padding: 6px 14px; border: 0; background: transparent;
+  color: var(--ink); cursor: pointer; transition: background .2s, color .2s;
+}
+.region-switch button + button { border-left: 1px solid var(--ink); }
+.region-switch button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.region-switch button:hover:not([aria-pressed="true"]) { background: var(--surface); }
+.app h1 .region-name { color: var(--muted); }
+.app h1 .region-name:not(:empty)::before { content: "·"; margin-right: .3em; }
+.region-note {
+  max-width: 62ch; margin: -12px 0 24px; padding: 10px 14px; border-left: 3px solid var(--accent);
+  background: var(--paper); font-size: var(--step-small); color: var(--ink);
+}
+.region-note[hidden] { display: none; }
+#screen-map .region-note { margin: 14px 0; }
 
 /* ---- hero: type on night, a stack of folders ---------------------------------------- */
 .hero {
@@ -302,6 +320,7 @@ code { background: var(--surface); padding: 0 .3em; font-size: .9em; }
 @media (max-width: 900px) {
   .topbar .links { gap: 14px; }
   .topbar .links a { font-size: .9375rem; }
+  .region-switch button { padding: 5px 10px; font-size: .875rem; }
   .hero h1 { font-size: 17vw; }
   .hero-lead { font-size: 1.0625rem; }
   .folders { min-height: 460px; }

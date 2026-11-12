@@ -14,6 +14,8 @@ CONFIG ?= config/uttarakhand.yaml
 PY     ?= python
 FORCE  ?=
 FORCE_FLAG := $(if $(FORCE),--force,)
+# The regions the demo shows, one config each; the first is the default.
+REGIONS ?= config/uttarakhand.yaml config/odisha.yaml
 
 .PHONY: pipeline ingest static weather weather-resample fwi panel panel-sensitivity train train-sensitivity \
         train-spatial evaluate serve site test lint
@@ -69,11 +71,11 @@ evaluate:
 	$(PY) -m wfpin.evaluate --config $(CONFIG)
 
 serve:
-	$(PY) -m wfpin.serve.api --config $(CONFIG)
+	$(PY) -m wfpin.serve.api --regions $(REGIONS)
 
 # The same demo as a static site in site/ (no server): deploy with `npx vercel deploy site --prod` (live: https://vanagni.vercel.app)
 site:
-	$(PY) -m wfpin.serve.export --config $(CONFIG) --out site
+	$(PY) -m wfpin.serve.export --regions $(REGIONS) --out site
 
 test:
 	$(PY) -m pytest -q
