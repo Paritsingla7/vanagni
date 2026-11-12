@@ -1,6 +1,6 @@
 # Vanagni: does knowing where people are predict forest fire better than weather?
 
-A backtested study of next-day forest-fire risk in Uttarakhand, India, 2017–2026.
+A backtested study of next-day forest-fire risk in Uttarakhand (2017–2026) and Odisha (2017–2024), India.
 
 ## 1. Summary
 
@@ -17,6 +17,12 @@ small lift came entirely from the first two seasons (+0.015 in 2021, +0.005 in 2
 four seasons since it was −0.001, −0.001, +0.000 and −0.002. It was **not detectable on places the
 model had never trained on** (−0.002, CI −0.005 to +0.002), and did not change with the label's
 vegetation threshold. Weather's lift was about thirteen times larger.
+
+**It held in a second state.** Odisha (sal and dry deciduous forest, a November–June season, four
+held-out seasons 2021–2024) was run through the same pipeline from a config file. Weather added
+**+0.022** (0.007–0.034); human proximity added **+0.0004** (−0.001 to +0.002), indistinguishable
+from zero. On unseen places it was a small but detectable +0.006 (0.002–0.009), against weather's
++0.044 (section 4.5).
 
 Other findings: a fixed-formula operational index (the Canadian Fire Weather Index) is a weak
 predictor on its own (PR-AUC 0.038, below the persistence rule's 0.075) because it rates
@@ -147,11 +153,48 @@ Models with weather transfer to unseen places with a modest drop (full model 0.1
 what location memorisation looks like. Fire history loses its per-cell burn rate on held-out cells
 (0.145 → 0.110), which is expected.
 
+### 4.5 A second state: Odisha (mean over 2021–2024)
+
+Odisha differs from Uttarakhand in forest (sal and dry deciduous, not chir pine), in fire season
+(November to June, wrapping the new year) and in scale (6,467 scored cells; 1,367,354 raw detections
+filtered to 204,949). It ran through the same code from `config/odisha.yaml`, with the same stages,
+model settings and evaluation. Seasons end in June 2024 because that is where the ERA5-Land download
+stops.
+
+| Stage | PR-AUC (95 % CI) | Spatial holdout |
+|---|---|---|
+| Persistence | 0.069 (0.048–0.082) | 0.069 |
+| Fire Weather Index, as a rule | 0.035 (0.023–0.047) | 0.035 |
+| + fire history | 0.184 (0.140–0.211) | 0.091 |
+| + weather | 0.206 (0.161–0.229) | 0.135 |
+| + fuel & terrain | 0.217 (0.171–0.242) | 0.180 |
+| + human proximity | 0.218 (0.170–0.242) | 0.185 |
+| full model minus weather | 0.191 (0.146–0.219) | 0.155 |
+
+| Change in PR-AUC | Over seasons (95 % CI) | Unseen places (95 % CI) |
+|---|---|---|
+| Fire history over persistence | +0.116 (0.089–0.135) | +0.022 (0.010–0.036) |
+| Weather | +0.022 (0.007–0.034) | +0.044 (0.027–0.052) |
+| Fuel & terrain | +0.011 (0.008–0.014) | +0.045 (0.031–0.053) |
+| **Human proximity** | **+0.0004 (−0.001 to +0.002)** | **+0.006 (0.002–0.009)** |
+| Full model over the FWI rule | +0.183 (0.144–0.200) | +0.150 (0.115–0.167) |
+
+* Per season, the human-proximity change was −0.001 (2021), −0.000 (2022), +0.002 (2023) and +0.001
+  (2024). At 30 % and 70 % vegetation share it was +0.0002 (−0.002 to +0.002) and +0.0008 (−0.001 to
+  +0.002).
+* Share of the full model's gain: history 83.8 %, weather 9.7 %, fuel & terrain 4.3 %, human
+  proximity 2.3 %.
+* The one place human proximity shows a detectable lift is the spatial holdout, where models cannot
+  use a held-out cell's own burn history and so lean on place features. Even there weather and fuel &
+  terrain each add about eight times as much.
+
 ## 5. Interpretation
 
 1. **Weather, not human proximity, carries the next-day signal.** Fire history carries most of the
    model's gain (73.5 %) and the persistence rule alone is a strong baseline (fires persist), weather is the
    largest addition, and human-proximity features are a rounding error that does not survive unseen places.
+   Odisha, a different forest and season, gives the same answer: human proximity adds nothing detectable
+   over seasons, and on unseen places a small lift far below weather's.
 2. **That does not mean people do not cause the fires.** The study shows that *static* proximity to
    roads and settlements adds little *next-day* ranking power once weather, fuel and fire history are
    known. Most human-caused ignition is plausibly decided by *timing* (harvest, litter clearing,
@@ -164,8 +207,9 @@ what location memorisation looks like. Fire history loses its per-cell burn rate
 
 ## 6. Threats to validity
 
-* **Six seasons, one state.** Season-to-season variation is not in the bootstrap intervals. 2023 and
-  2025 were low-fire seasons (base rates 0.9 % and 0.55 %).
+* **Few seasons, two states.** Six seasons in Uttarakhand and four in Odisha. Season-to-season
+  variation is not in the bootstrap intervals. In Uttarakhand 2023 and 2025 were low-fire seasons
+  (base rates 0.9 % and 0.55 %). Odisha's fire calendar is also a single provisional state-wide window.
 * **The label is any vegetation fire seen by one satellite**, not a fire of known cause. It misses
   fires hidden by cloud or between overpasses and cannot separate human from natural ignition.
 * **Weather is coarser than the grid** (≈ 9–11 km vs 5 km): neighbouring cells share a sample.
@@ -199,19 +243,18 @@ These are included because they show the process, not because they were comforta
 `make pipeline` (see the README) rebuilds everything from public data. Randomness is fixed: model seed 42,
 bootstrap seed 0, spatial-fold seed 0. The slow step is the ERA5-Land download, which waits in
 Copernicus's queue for hours to days. All thresholds, stage definitions and evaluation settings are in
-`config/defaults.yaml`; the Uttarakhand-specific settings are in `config/uttarakhand.yaml`.
+`config/defaults.yaml`; the region-specific settings are in `config/uttarakhand.yaml` and `config/odisha.yaml`.
 
 ## 9. Scaling and next steps
 
-The pipeline is region-agnostic: `config/odisha.yaml` builds Odisha's grid (6,608 cells), terrain,
-land cover, roads and 30 districts with the same code, in `data/odisha/`, using an equal-area projection
-because the state spans two UTM zones. Not yet done, and the natural next work, in order:
+The pipeline is region-agnostic: `config/odisha.yaml` builds, models and evaluates Odisha (6,608
+cells, 30 districts) with the same code, in `data/odisha/`, using an equal-area projection because the
+state spans two UTM zones. Its fire season runs November to June and wraps the new year; the panel,
+folds and FWI handle that (a season is labelled by the year it ends in, and the FWI restarts on
+Oct 1). The results are in section 4.5. The natural next work, in order:
 
-1. **Odisha weather and modelling**, the real test of whether the finding generalises. Odisha's
-   fire season runs November to June and wraps the new year; the panel, folds and FWI now handle that
-   (a season is labelled by the year it ends in, and the FWI restarts on Oct 1), and the weather
-   download is under way.
-2. **District-level human-ignition calendars**, to test the timing half of the hypothesis.
-3. **Calibrated probabilities**, so scores can be read as risk rather than rank.
-4. **Live daily scoring** from a weather *forecast* (reanalysis is not available at prediction time),
+1. **Live daily scoring** from a weather *forecast* (reanalysis is not available at prediction time),
    reporting the drop in skill honestly, with a public scorecard of yesterday's hits.
+2. **District-level human-ignition calendars**, to test the timing half of the hypothesis.
+3. **A forest-type map** (chir pine, sal) and **calibrated probabilities**, so scores can be read as
+   risk rather than rank.

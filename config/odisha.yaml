@@ -24,8 +24,6 @@ region:
     - "The fire calendar is one provisional state-wide window (Nov 1 - Jun 30, from the Forest Survey of India alert season); no district-level source was found."
     - "Four test seasons (2021-2024): the ERA5-Land download covers January 2017 to June 2024."
     - "Dry deciduous and sal forest are not separated in the land-cover layer, and much of the state's fire is in shifting-cultivation areas that WorldCover may map as shrub or cropland."
-  # Shown on Odisha's pages of the site. Delete it once the final run is published.
-  site_note: "Initial results for Odisha. A further run is in progress. These numbers already point the same way as Uttarakhand's: weather adds far more than roads, villages and fields do, and human proximity adds almost nothing."
 
 season:
   calendar_csv: config/fire_calendar_odisha.csv
