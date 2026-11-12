@@ -4,6 +4,7 @@ Copies the frontend and the files the Flask API would have served -- the same pr
 results, nothing re-scored -- into one folder:
 
     out/index.html            (marked data-static="1", so app.js reads files, not /api)
+    out/briefing.html         the presenter's walk-through at /briefing (unlinked, noindex)
     out/static/...            frontend assets
     out/data/regions.json     the regions on the site, the first is the default (/api/regions)
     out/data/<region>/ablation.json, out/data/<region>/methodology.json
@@ -23,6 +24,7 @@ from wfpin.config import cli_args
 from wfpin.serve.api import STATIC_DIR, add_regions_arg, region_list, regions_from_args
 
 KEEP = {".vercel", ".gitignore"}
+PAGES = ["index.html", "briefing.html"]
 REQUIRED = ["ablation.json", "methodology.json", "risk/index.json", "risk/grid.geojson"]
 
 
@@ -59,11 +61,12 @@ def export_site(regions: dict[str, Path] | Path, out: Path,
             shutil.rmtree(child) if child.is_dir() else child.unlink()
     shutil.copytree(STATIC_DIR, out / "static")
 
-    html = (STATIC_DIR / "index.html").read_text()
-    if '<html lang="en">' not in html:
-        raise ValueError("index.html has no <html lang=\"en\"> tag to mark as static")
-    (out / "index.html").write_text(html.replace('<html lang="en">',
-                                                 '<html lang="en" data-static="1">', 1))
+    for page in PAGES:   # the briefing is served at /briefing (cleanUrls), unlinked
+        html = (STATIC_DIR / page).read_text()
+        if '<html lang="en">' not in html:
+            raise ValueError(f"{page} has no <html lang=\"en\"> tag to mark as static")
+        (out / page).write_text(html.replace('<html lang="en">',
+                                             '<html lang="en" data-static="1">', 1))
 
     info = {rid: _copy_region(data_dir, out / "data" / rid) for rid, data_dir in regions.items()}
     (out / "data" / "regions.json").write_text(json.dumps(
@@ -72,7 +75,9 @@ def export_site(regions: dict[str, Path] | Path, out: Path,
     (out / "vercel.json").write_text(json.dumps({
         "cleanUrls": True,
         "headers": [{"source": "/data/(.*)",
-                     "headers": [{"key": "Cache-Control", "value": "public, max-age=300"}]}],
+                     "headers": [{"key": "Cache-Control", "value": "public, max-age=300"}]},
+                    {"source": "/briefing(.html)?",
+                     "headers": [{"key": "X-Robots-Tag", "value": "noindex, nofollow"}]}],
     }, indent=2))
     return info
 
