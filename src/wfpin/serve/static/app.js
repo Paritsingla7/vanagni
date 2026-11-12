@@ -138,6 +138,8 @@ function markRegion() {
   $("region-switch").querySelectorAll("button").forEach((b) =>
     b.setAttribute("aria-pressed", String(b.dataset.region === region.current)));
   fill("region", regionName(region.current));
+  const note = (region.list.find((r) => r.id === region.current) || {}).note || "";
+  document.querySelectorAll(".region-note").forEach((n) => { n.textContent = note; n.hidden = !note; });
 }
 
 function setRegion(id) {

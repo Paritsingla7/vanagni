@@ -60,11 +60,12 @@ def test_regions_are_listed_and_selected(data_dir, tmp_path):
     other = tmp_path / "other"
     (other / "risk").mkdir(parents=True)
     (other / "ablation.json").write_text(json.dumps({"stages": ["odisha"]}))
-    client = create_app({"uttarakhand": data_dir, "odisha": other}).test_client()
+    client = create_app({"uttarakhand": data_dir, "odisha": other},
+                        notes={"odisha": "initial"}).test_client()
     assert client.get("/api/regions").get_json() == {
         "default": "uttarakhand",
         "regions": [{"id": "uttarakhand", "name": "Uttarakhand"},
-                    {"id": "odisha", "name": "Odisha"}]}
+                    {"id": "odisha", "name": "Odisha", "note": "initial"}]}
     assert client.get("/api/ablation").get_json() == {"stages": []}
     assert client.get("/api/ablation?region=odisha").get_json() == {"stages": ["odisha"]}
     r = client.get("/api/risk?region=odisha&date=2024-04-12")   # odisha has no risk files

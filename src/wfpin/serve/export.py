@@ -40,9 +40,11 @@ def _copy_region(data_dir: Path, out: Path) -> dict:
     return {"days": len(in_range), "seasons": [r["season"] for r in index["ranges"]]}
 
 
-def export_site(regions: dict[str, Path] | Path, out: Path) -> dict:
+def export_site(regions: dict[str, Path] | Path, out: Path,
+                notes: dict[str, str] | None = None) -> dict:
     """`regions` maps region id -> processed-data directory (first = default); a bare Path
-    is one region. Returns {region: {"days", "seasons"}}."""
+    is one region. `notes` (region id -> text) are shown on that region's pages.
+    Returns {region: {"days", "seasons"}}."""
     if isinstance(regions, Path):
         regions = {"default": regions}
     for rid, data_dir in regions.items():
@@ -65,7 +67,7 @@ def export_site(regions: dict[str, Path] | Path, out: Path) -> dict:
 
     info = {rid: _copy_region(data_dir, out / "data" / rid) for rid, data_dir in regions.items()}
     (out / "data" / "regions.json").write_text(json.dumps(
-        {"default": next(iter(regions)), "regions": region_list(regions)}, indent=2))
+        {"default": next(iter(regions)), "regions": region_list(regions, notes)}, indent=2))
     # Daily files change when the pipeline re-runs; the frontend never does in between.
     (out / "vercel.json").write_text(json.dumps({
         "cleanUrls": True,
@@ -83,6 +85,7 @@ def _add_args(parser) -> None:
 
 if __name__ == "__main__":
     cfg, args = cli_args("Export the Vanagni demo as a static site", _add_args)
-    info = export_site(regions_from_args(cfg, args), Path(args.out))
+    dirs, notes = regions_from_args(cfg, args)
+    info = export_site(dirs, Path(args.out), notes)
     for rid, r in info.items():
         print(f"wrote {args.out}/data/{rid}/: {r['days']} days, seasons {r['seasons']}")

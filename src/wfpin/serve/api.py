@@ -35,12 +35,21 @@ def region_dirs(configs: list[dict]) -> dict[str, Path]:
     return {cfg["region"]["name"]: paths(cfg).processed for cfg in configs}
 
 
-def region_list(regions: dict[str, Path]) -> list[dict]:
-    return [{"id": rid, "name": rid.replace("_", " ").title()} for rid in regions]
+def region_notes(configs: list[dict]) -> dict[str, str]:
+    """region id -> its `region.site_note` (a line the site shows on that region's pages)."""
+    return {cfg["region"]["name"]: cfg["region"]["site_note"]
+            for cfg in configs if cfg["region"].get("site_note")}
 
 
-def create_app(regions: dict[str, Path] | Path) -> Flask:
-    """`regions` maps region id -> its processed-data directory; a bare Path is one region."""
+def region_list(regions: dict[str, Path], notes: dict[str, str] | None = None) -> list[dict]:
+    notes = notes or {}
+    return [{"id": rid, "name": rid.replace("_", " ").title(),
+             **({"note": notes[rid]} if rid in notes else {})} for rid in regions]
+
+
+def create_app(regions: dict[str, Path] | Path, notes: dict[str, str] | None = None) -> Flask:
+    """`regions` maps region id -> its processed-data directory; a bare Path is one region.
+    `notes` (region id -> text) are shown on that region's pages."""
     if isinstance(regions, Path):
         regions = {"default": regions}
     if not regions:
@@ -74,7 +83,7 @@ def create_app(regions: dict[str, Path] | Path) -> Flask:
 
     @app.get("/api/regions")
     def region_index():
-        return jsonify({"default": default, "regions": region_list(regions)})
+        return jsonify({"default": default, "regions": region_list(regions, notes)})
 
     @app.get("/api/ablation")
     def ablation():
@@ -145,13 +154,15 @@ def add_regions_arg(parser) -> None:
                              "overrides --config")
 
 
-def regions_from_args(cfg: dict, args) -> dict[str, Path]:
+def regions_from_args(cfg: dict, args) -> tuple[dict[str, Path], dict[str, str]]:
+    """(region id -> data dir, region id -> site note) from --regions, else from --config."""
     if args.regions:
-        return region_dirs([load_config(c) for c in args.regions])
+        configs = [load_config(c) for c in args.regions]
+        return region_dirs(configs), region_notes(configs)
     data = Path(args.data_dir) if args.data_dir else paths(cfg).processed
-    return {cfg["region"]["name"]: data}
+    return {cfg["region"]["name"]: data}, region_notes([cfg])
 
 
 if __name__ == "__main__":
     cfg, args = cli_args("Vanagni demo server (read-only)", _add_args)
-    create_app(regions_from_args(cfg, args)).run(port=args.port, debug=False)  # never debug=True
+    create_app(*regions_from_args(cfg, args)).run(port=args.port, debug=False)  # never debug=True
