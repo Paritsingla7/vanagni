@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Vanagni · Briefing</title>
+  <link rel="preconnect" href="https://api.fontshare.com">
+  <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
+  <link href="https://api.fontshare.com/v2/css?f[]=erode@400,500,600&display=swap" rel="stylesheet">
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/briefing.css">
+</head>
+<body class="bf">
+  <!-- Not linked from the site: a walk-through to give before opening the live pages.
+       Numbers marked data-v are filled from the same result files the site reads. -->
+  <nav class="bf-top" aria-label="Briefing">
+    <span class="bf-brand">Vanagni <span>briefing</span></span>
+    <ol class="bf-toc">
+      <li><a href="#what">What</a></li>
+      <li><a href="#answer">Answer</a></li>
+      <li><a href="#build">Build</a></li>
+      <li><a href="#why">Why</a></li>
+      <li><a href="#journey">Journey</a></li>
+      <li><a href="#next">Next</a></li>
+    </ol>
+    <a class="bf-live" href="/">Live site →</a>
+  </nav>
+
+  <main>
+    <!-- 00 ------------------------------------------------------------------------------>
+    <header class="bf-hero">
+      <p class="bf-kicker">A briefing before the live demo</p>
+      <h1>Vanagni</h1>
+      <p class="bf-lead">Tomorrow's forest-fire list for an Indian state: what it is, how it
+        was built, what it found, and where it goes next.</p>
+      <p class="bf-meta"><span><em>vana</em> = forest, <em>agni</em> = fire</span>
+        <span>Uttarakhand and Odisha</span><span>5 km cells</span><span>next day</span>
+        <span>backtested on held-out seasons</span></p>
+    </header>
+
+    <!-- 01 what -------------------------------------------------------------------------->
+    <section class="bf-sec" id="what">
+      <aside class="cue">Open with the gap, not the model. One sentence: today's system shows
+        what is burning, nobody shows what will burn.</aside>
+      <div class="bf-body">
+        <p class="bf-num">01</p>
+        <h2>What Vanagni is</h2>
+        <p class="bf-big">Every evening, rank every 5&nbsp;km patch of a state's forest by how
+          likely a satellite is to see it burn <em>tomorrow</em>.</p>
+        <div class="bf-cols">
+          <div>
+            <h3>The gap</h3>
+            <p>The Forest Survey of India's alert system (FAST&nbsp;3.0) tells forest departments
+              what is burning <strong>right now</strong>, from NASA satellite detections. There is
+              no open, tested system that says what is <strong>likely to burn next</strong>.</p>
+          </div>
+          <div>
+            <h3>The use</h3>
+            <p>A forest division has a handful of patrol teams. A team can check about twenty
+              places in a day. So the useful output is a short ranked list, and the score that
+              matters is how many of the top 20 actually burn.</p>
+          </div>
+          <div>
+            <h3>What it is not</h3>
+            <p>Not a live service yet, and not a probability. It is a backtest: every past day
+              was ranked by a model that had only seen earlier seasons, then checked against
+              what the satellite saw.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 02 question ---------------------------------------------------------------------->
+    <section class="bf-sec" id="question">
+      <aside class="cue">Say it as a bet that could lose. That is what makes a "no" worth
+        something.</aside>
+      <div class="bf-body">
+        <p class="bf-num">02</p>
+        <h2>The question it tests</h2>
+        <blockquote class="bf-quote">Almost every forest fire in India is lit by people. So does
+          knowing <em>where people are</em> (roads, villages, fields) predict tomorrow's fire
+          better than the <em>weather</em> does?</blockquote>
+        <p class="bf-p">90–95% of India's forest fires are reported as human-caused: litter
+          burned before <em>tendu</em> and <em>mahua</em> collection, crop residue fires that
+          escape into forest, grazing clearance. If that is the whole story, human-proximity
+          features should beat weather. The claim was written down before any result, as
+          something the evaluation could refute.</p>
+      </div>
+    </section>
+
+    <!-- 03 answer ------------------------------------------------------------------------>
+    <section class="bf-sec bf-dark" id="answer">
+      <aside class="cue">Lead with the ratio, then say it held in a second state and on
+        places the model never saw.</aside>
+      <div class="bf-body">
+        <p class="bf-num">03</p>
+        <h2>The answer: no</h2>
+        <p class="bf-p">Weather adds far more than human proximity does, in both states, on
+          seasons and on places the model never trained on. The human-proximity lift is close
+          to zero.</p>
+        <div class="bf-duel">
+          <div class="bf-region">
+            <h3>Uttarakhand <small data-v="uttarakhand.span">6 seasons, 2021–2026</small></h3>
+            <dl>
+              <div><dt>Weather adds</dt><dd data-v="uttarakhand.weather">+0.035</dd>
+                <span class="bf-ci" data-v="uttarakhand.weather_ci">CI 0.024 – 0.042</span></div>
+              <div><dt>Human proximity adds</dt><dd data-v="uttarakhand.human">+0.003</dd>
+                <span class="bf-ci" data-v="uttarakhand.human_ci">CI 0.001 – 0.004</span></div>
+              <div><dt>Human, on unseen places</dt><dd data-v="uttarakhand.human_spatial">−0.002</dd>
+                <span class="bf-ci" data-v="uttarakhand.human_spatial_note">no detectable difference</span></div>
+            </dl>
+            <p class="bf-ratio" data-ratio="uttarakhand">Weather ≈ <strong>13×</strong> the human lift</p>
+          </div>
+          <div class="bf-region">
+            <h3>Odisha <small data-v="odisha.span">4 seasons, 2021–2024</small></h3>
+            <dl>
+              <div><dt>Weather adds</dt><dd data-v="odisha.weather">+0.022</dd>
+                <span class="bf-ci" data-v="odisha.weather_ci">CI 0.007 – 0.034</span></div>
+              <div><dt>Human proximity adds</dt><dd data-v="odisha.human">+0.0004</dd>
+                <span class="bf-ci" data-v="odisha.human_ci">CI −0.001 – 0.002</span></div>
+              <div><dt>Human, on unseen places</dt><dd data-v="odisha.human_spatial">+0.006</dd>
+                <span class="bf-ci" data-v="odisha.human_spatial_note">small but real; weather adds +0.044</span></div>
+            </dl>
+            <p class="bf-ratio" data-ratio="odisha">Human lift <strong>not detectable</strong></p>
+          </div>
+        </div>
+        <p class="bf-small">Numbers are the change in PR-AUC when a feature family is added
+          (explained below), with 95% intervals.</p>
+        <div class="bf-cols bf-cols-2">
+          <div>
+            <h3>What this does <em>not</em> mean</h3>
+            <p>It does not mean people don't start the fires. It means <em>where</em> people are
+              is already captured by fire history: places that are burned every year show up as
+              history. What is still untested is <em>when</em> people burn (the collection and
+              harvest calendar), because no district-level calendar exists to test it with.</p>
+          </div>
+          <div>
+            <h3>The other finding</h3>
+            <p>The operational Fire Weather Index on its own scores PR-AUC
+              <span data-v="uttarakhand.fwi">0.038</span>. The full model scores
+              <span data-v="uttarakhand.full">0.190</span>, about
+              <strong data-v="uttarakhand.vs_fwi">5×</strong> better (Uttarakhand). The index rates
+              how dry a region is; it cannot say which cell will burn.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 04 architecture ------------------------------------------------------------------>
+    <section class="bf-sec" id="build">
+      <aside class="cue">Walk it left to right. Each box is one Python module that reads the
+        last one's files; one Makefile runs the lot.</aside>
+      <div class="bf-body">
+        <p class="bf-num">04</p>
+        <h2>How it is built</h2>
+        <div class="bf-arch" role="img" aria-label="Pipeline: open data, build, learn and test, show">
+          <div class="lane">
+            <h4>Open data</h4>
+            <span class="box">NASA FIRMS<small>VIIRS fire detections, 375 m</small></span>
+            <span class="box">ERA5-Land<small>hourly weather, ~9 km</small></span>
+            <span class="box">SRTM<small>elevation, 30 m</small></span>
+            <span class="box">ESA WorldCover<small>land cover, 10 m</small></span>
+            <span class="box">OpenStreetMap<small>roads, villages</small></span>
+            <span class="box">FSI fire season<small>calendar</small></span>
+          </div>
+          <div class="lane">
+            <h4>Build</h4>
+            <span class="box b2">Ingest<small>rate-limited, resumable downloads</small></span>
+            <span class="box b2">Static layers<small>5 km equal-area grid, terrain, land cover, distances</small></span>
+            <span class="box b2">Weather + FWI<small>IST days, Fire Weather Index</small></span>
+            <span class="box b2">Panel<small>one row per cell per day, label = fire tomorrow</small></span>
+          </div>
+          <div class="lane">
+            <h4>Learn and test</h4>
+            <span class="box b3">Train<small>XGBoost, one model per stage per season</small></span>
+            <span class="box b3">Spatial holdout<small>50 km blocks never seen in training</small></span>
+            <span class="box b3">Evaluate<small>PR-AUC, precision@20, bootstrap intervals</small></span>
+          </div>
+          <div class="lane">
+            <h4>Show</h4>
+            <span class="box b4">Result files<small>JSON: ablation, method, daily risk</small></span>
+            <span class="box b4">Flask API<small>read-only</small></span>
+            <span class="box b4">Static site<small>plain JS + Leaflet, on Vercel</small></span>
+          </div>
+        </div>
+
+        <div class="bf-cols bf-cols-2">
+          <div>
+            <h3>One row of the data</h3>
+            <div class="bf-row">
+              <p><span>cell, day</span> cell 1,214 on 2024-04-19</p>
+              <p><span>history</span> fires in last 7 / 30 days, days since last fire, neighbours burning, cell's long-run burn rate</p>
+              <p><span>weather</span> temperature, humidity, wind, rain, soil moisture</p>
+              <p><span>fuel &amp; terrain</span> forest share, slope, elevation, aspect</p>
+              <p><span>human</span> distance to road and village, cropland and built-up share</p>
+              <p class="lbl"><span>label</span> did a qualifying fire show up here on 2024-04-20?</p>
+            </div>
+          </div>
+          <div>
+            <h3>The tools</h3>
+            <ul class="bf-tools">
+              <li><b>Data</b> Python 3.12, pandas, xarray, geopandas, rasterio</li>
+              <li><b>Model</b> XGBoost; scikit-learn for the metrics</li>
+              <li><b>Serving</b> Flask API; plain JavaScript and Leaflet, no build step</li>
+              <li><b>Quality</b> pytest (leakage tests included), ruff</li>
+              <li><b>Hosting</b> Vercel, as a static site</li>
+            </ul>
+            <p class="bf-small">A second state is a config file, not new code: Odisha runs on the
+              same pipeline from <code>config/odisha.yaml</code>. Odisha alone is
+              <span data-v="odisha.cells">6,467</span> scored cells; Uttarakhand
+              <span data-v="uttarakhand.cells">1,950</span>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 label ------------------------------------------------------------------------->
+    <section class="bf-sec" id="label">
+      <aside class="cue">This is the part people skip. Raw satellite fire is mostly not forest
+        fire, and crop burning would have flattered the human hypothesis.</aside>
+      <div class="bf-body">
+        <p class="bf-num">05</p>
+        <h2>What counts as a fire</h2>
+        <p class="bf-p">A satellite "hotspot" is any hot pixel: crop-residue burning, brick kilns,
+          factories, fires across the border. Five filters keep only forest fire:</p>
+        <ol class="bf-funnel">
+          <li><b data-v="uttarakhand.f_raw">397,346</b> raw detections (Uttarakhand, 2017–2026)</li>
+          <li>one satellite only (Suomi-NPP), so detection density doesn't jump in 2018</li>
+          <li>inside the state boundary, not the bounding box around it</li>
+          <li>not a known industrial source; nominal or high confidence</li>
+          <li>at least half the 375 m footprint is natural vegetation</li>
+          <li>not a persistent hotspot (a spot that burns even outside the season)</li>
+          <li class="end"><b data-v="uttarakhand.f_kept">104,440</b> qualifying forest-fire detections</li>
+        </ol>
+        <p class="bf-small">Of the detections the vegetation filter removed, 94% sat on cropland.
+          Without it, "near fields" would have looked like a great predictor.</p>
+      </div>
+    </section>
+
+    <!-- 06 why the model ----------------------------------------------------------------->
+    <section class="bf-sec" id="why">
+      <aside class="cue">The model is deliberately boring. The point is the comparison between
+        feature families, so the learner is held fixed.</aside>
+      <div class="bf-body">
+        <p class="bf-num">06</p>
+        <h2>Why this model</h2>
+        <p class="bf-p"><strong>XGBoost</strong>, gradient-boosted decision trees: one fixed
+          configuration (400 trees, depth 6, learning rate 0.05) for every stage and every season.</p>
+        <div class="bf-cards">
+          <div class="card pick"><h3>Gradient-boosted trees</h3>
+            <p>Built for tables of mixed features. Catches interactions ("dry <em>and</em> near a
+              road") without hand-made terms, handles missing values, trains in minutes, and
+              reports which features it leaned on.</p></div>
+          <div class="card"><h3>Logistic regression</h3>
+            <p>Too simple: risk is not a straight line in temperature or distance, and the
+              interactions would need to be guessed in advance.</p></div>
+          <div class="card"><h3>Deep learning</h3>
+            <p>Needs far more fire days than exist, is hard to explain, and the study needs
+              hundreds of fits (stages × seasons × spatial folds).</p></div>
+          <div class="card"><h3>The baselines it must beat</h3>
+            <p><em>Persistence</em> ("burning today, burning tomorrow") and the operational
+              <em>Fire Weather Index</em>. Beating nothing is not a result.</p></div>
+        </div>
+        <p class="bf-small">Fires are rare (about 1–3% of cell-days), so each training split
+          re-weights positives (<code>scale_pos_weight</code>) from its own data. No per-stage
+          tuning: any difference between stages comes from the features, not the knobs.</p>
+      </div>
+    </section>
+
+    <!-- 07 why the process --------------------------------------------------------------->
+    <section class="bf-sec" id="process">
+      <aside class="cue">Four words carry this slide: ablation, rolling origin, spatial
+        holdout, leakage. If asked "how do you know", it is one of these.</aside>
+      <div class="bf-body">
+        <p class="bf-num">07</p>
+        <h2>Why this process</h2>
+        <div class="bf-steps">
+          <div><h3>Ablation: add one family at a time</h3>
+            <p>Persistence → + fire history → + weather → + fuel &amp; terrain → + human proximity.
+              The lift at each step is what that family adds. Terrain and human features are split
+              into separate steps so static "place" features can't take credit for people.</p></div>
+          <div><h3>Rolling origin: never train on the future</h3>
+            <p>To score a season, train only on the seasons before it, the way a real system
+              would have to work.</p>
+            <div class="bf-roll" data-roll aria-hidden="true"></div></div>
+          <div><h3>Spatial holdout: places it never saw</h3>
+            <p>Hide whole 50&nbsp;km blocks from training and score them. A model that memorised
+              "this cell burns" fails here; one that learned conditions survives.</p></div>
+          <div><h3>Leakage tests: automated, on real data</h3>
+            <p>A test rebuilds the data with fires cut off at a date and fails if any feature
+              before that date changes. Static layers must never change by date.</p></div>
+          <div><h3>Metrics that fit a rare event</h3>
+            <p><strong>PR-AUC</strong>: how well the ranking puts burning cells on top (random
+              ≈ the burn rate, about 0.02). <strong>Precision@20</strong>: of the top 20 cells each
+              day, how many burned. No accuracy: 98% "accuracy" is saying "no fire" every day.</p></div>
+          <div><h3>Honest intervals</h3>
+            <p>Days next to each other share weather, so intervals come from resampling whole
+              weeks (7-day block bootstrap, 1,000 times), and lifts are compared on the same days.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 08 ladder ------------------------------------------------------------------------>
+    <section class="bf-sec" id="ladder">
+      <aside class="cue">Point at the two big steps (history, weather) and how flat the last
+        one is. That flat step is the whole finding.</aside>
+      <div class="bf-body">
+        <p class="bf-num">08</p>
+        <h2>What each layer adds</h2>
+        <p class="bf-p">Mean PR-AUC over the test seasons, each stage adding one family to the one
+          above it.</p>
+        <div class="bf-ladders">
+          <figure><figcaption>Uttarakhand</figcaption><div class="bf-ladder" data-ladder="uttarakhand"></div></figure>
+          <figure><figcaption>Odisha</figcaption><div class="bf-ladder" data-ladder="odisha"></div></figure>
+        </div>
+        <p class="bf-small">Inside the full model, human-proximity features carry
+          <span data-v="uttarakhand.share_human">3.5%</span> of the model's gain in Uttarakhand;
+          fire history carries <span data-v="uttarakhand.share_history">73.5%</span>.</p>
+      </div>
+    </section>
+
+    <!-- 09 journey ----------------------------------------------------------------------->
+    <section class="bf-sec" id="journey">
+      <aside class="cue">Keep this quick. The part worth a sentence is the "checks caught"
+        list: it shows the testing was real.</aside>
+      <div class="bf-body">
+        <p class="bf-num">09</p>
+        <h2>How it was developed</h2>
+        <p class="bf-p">Written as a spec first (requirements, architecture, data sources, risks),
+          then built phase by phase, each on its own branch, tested, then merged.</p>
+        <ol class="bf-time">
+          <li><time>Aug 2026</time><b>Phase 0</b> Spec, scaffolding, and an audit of an earlier wildfire project to learn from its mistakes.</li>
+          <li><time>Oct 2026</time><b>Phases 1–2</b> Ingestion (FIRMS, ERA5-Land) and static layers; the cell × day panel and the label filter.</li>
+          <li><time>Oct 2026</time><b>Phases 3–4</b> Staged XGBoost models, the FWI baseline, rolling-origin evaluation, bootstrap, spatial holdout.</li>
+          <li><time>Oct 2026</time><b>Phases 5–6</b> The read-only API and demo screens; README and written report.</li>
+          <li><time>Nov 2026</time><b>Phase 7</b> A second state from config alone (Odisha); seasons that wrap the new year; the field-sheet redesign.</li>
+          <li><time>Nov 2026</time><b>Phase 8</b> Uttarakhand extended to six test seasons, 2021–2026.</li>
+          <li><time>Nov 2026</time><b>Phases 9–11</b> The demo as a static site on Vercel; Odisha's seasons; Odisha on the site.</li>
+        </ol>
+        <h3 class="bf-h3">What the checks caught</h3>
+        <ul class="bf-caught">
+          <li><b>Rainfall</b> ERA5 accumulates rain from midnight UTC; a plain difference silently lost an hour a day. Caught against a real month of data.</li>
+          <li><b>Fire Weather Index</b> One constant was 10⁻⁴ instead of 10⁻⁶. Caught by the published reference case, which all outputs now match.</li>
+          <li><b>Wrong fires</b> 38% of detections in the bounding box were outside the state, including crop-burning plains. Removed before they could flatter the hypothesis.</li>
+          <li><b>The map</b> First version called scores "probabilities". They aren't calibrated, so the map now colours by rank.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 10 limits ------------------------------------------------------------------------>
+    <section class="bf-sec" id="limits">
+      <aside class="cue">Say these before you're asked. Owning the limits reads as rigour.</aside>
+      <div class="bf-body">
+        <p class="bf-num">10</p>
+        <h2>What it can't say</h2>
+        <ul class="bf-limits">
+          <li>The label is a satellite detection, not a fire of known cause; cloud and gaps between passes hide some fires.</li>
+          <li>Weather (~9–11 km) is coarser than the 5 km grid: neighbouring cells share one sample.</li>
+          <li>Road distances use today's OpenStreetMap for every past year.</li>
+          <li>One state-wide fire calendar, so the "when people burn" half of the question is untested, not refuted.</li>
+          <li>Scores rank cells; they are not calibrated probabilities.</li>
+          <li>A handful of seasons per state; season-to-season swings are not inside the intervals.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 11 where it stands / next -------------------------------------------------------->
+    <section class="bf-sec bf-dark" id="next">
+      <aside class="cue">End on the next step, concretely: score tomorrow from a real forecast
+        and publish yesterday's hits every morning.</aside>
+      <div class="bf-body">
+        <p class="bf-num">11</p>
+        <h2>Where it stands, and what it wants to be</h2>
+        <p class="bf-p">The goal: a daily list, for each forest division, of the places most likely
+          to burn tomorrow, graded in public every day against what actually burned.</p>
+        <ol class="bf-road">
+          <li class="done"><span class="st">Done</span>
+            <h3>The research result</h3>
+            <p>Which ingredients predict next-day fire: history and weather, not proximity.
+              Two states, a backtest, the live demo.</p></li>
+          <li class="now"><span class="st">Next step</span>
+            <h3>Forward proof</h3>
+            <p>Score real tomorrows. Swap reanalysis weather (only known afterwards) for the
+              free ECMWF forecast, pull FIRMS near-real-time fires, run every evening on a
+              schedule, and publish a scorecard of yesterday's hits. Expect some loss of skill,
+              and report it.</p></li>
+          <li><span class="st">Then</span>
+            <h3>A better model</h3>
+            <p>Test the timing half: <em>tendu</em>, <em>mahua</em>, harvest and <em>jhum</em>
+              calendars by district. Add a real forest-type map (chir pine, sal), Indian
+              reanalysis weather (IMDAA), and calibrated probabilities.</p></li>
+          <li><span class="st">The goal</span>
+            <h3>Real use</h3>
+            <p>A forest division using the list to place patrols, and the question that
+              matters: are fires caught earlier?</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- 12 pocket numbers ---------------------------------------------------------------->
+    <section class="bf-sec" id="pocket">
+      <aside class="cue">The figures most likely to come up, in one place.</aside>
+      <div class="bf-body">
+        <p class="bf-num">12</p>
+        <h2>At a glance</h2>
+        <div class="bf-glance">
+          <div><b data-v="uttarakhand.full">0.190</b><span>full model PR-AUC, Uttarakhand</span></div>
+          <div><b data-v="odisha.full">0.218</b><span>full model PR-AUC, Odisha</span></div>
+          <div><b data-v="uttarakhand.persist">0.075</b><span>persistence rule, Uttarakhand</span></div>
+          <div><b data-v="uttarakhand.p20">2–3</b><span>of the top 20 cells burn next day (vs under 1 at random)</span></div>
+          <div><b data-v="uttarakhand.pos">26,209</b><span>fire cell-days tested, Uttarakhand</span></div>
+          <div><b data-v="odisha.pos">60,720</b><span>fire cell-days tested, Odisha</span></div>
+          <div><b data-v="uttarakhand.positive_seasons">2 of 6</b><span>seasons with any human-proximity lift (2021, 2022)</span></div>
+          <div><b>0.02</b><span>PR-AUC of a random ranking (≈ the daily burn rate)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- end ------------------------------------------------------------------------------>
+    <section class="bf-end">
+      <p>Now, the live site: the map, the results with intervals, and the method.</p>
+      <a class="bf-go" href="/">Open Vanagni →</a>
+      <p class="bf-links"><a href="/#map">Risk map</a><a href="/#ablation">Results</a><a href="/#methodology">Method</a></p>
+    </section>
+  </main>
+  <script src="/static/briefing.js"></script>
+</body>
+</html>

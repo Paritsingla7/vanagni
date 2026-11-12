@@ -34,14 +34,14 @@ const cached = (url) => (staticCache[url] ||= fetchJSON(url).catch((e) => {
   delete staticCache[url]; throw e;
 }));
 
-async function staticRisk(day) {
-  const index = await cached("/data/risk/index.json");
+async function staticRisk(base, day) {
+  const index = await cached(`${base}/risk/index.json`);
   if (!index.ranges.some((r) => r.start <= day && day <= r.end)) {
     const valid = index.ranges.map((r) => `${r.start} to ${r.end}`).join(", ");
     throw new Error(`No prediction exists for ${day}. Valid dates: ${valid}.`);
   }
-  const [grid, payload] = await Promise.all([cached("/data/risk/grid.geojson"),
-                                             fetchJSON(`/data/risk/${day}.json`)]);
+  const [grid, payload] = await Promise.all([cached(`${base}/risk/grid.geojson`),
+                                             fetchJSON(`${base}/risk/${day}.json`)]);
   const geometry = grid._byId ||= Object.fromEntries(
     grid.features.map((f) => [String(f.properties.cell_id), f.geometry]));
   return { type: "FeatureCollection", date: payload.date,
@@ -50,15 +50,42 @@ async function staticRisk(day) {
              properties: { cell_id: Number(cid), risk: r, fire_next_day: y } })) };
 }
 
-async function getJSON(url) {
-  if (!STATIC) return fetchJSON(url);
+// ---- regions: the landing tells one region's story (the default); the map, results and
+// method pages follow the region switch. `id` null = a server without regions (one region).
+const region = { list: [], default: null, current: null };
+const regionName = (id) => (region.list.find((r) => r.id === id) || {}).name || "";
+
+async function loadRegions() {
+  try {
+    const r = await (STATIC ? cached("/data/regions.json") : fetchJSON("/api/regions"));
+    region.list = r.regions;
+    region.default = r.default;
+  } catch (e) { return; }                       // the pages still work for a single region
+  const want = new URLSearchParams(location.hash.split("?")[1] || "").get("region");
+  region.current = region.list.some((r) => r.id === want) ? want : region.default;
+}
+
+// `rid` defaults to the switched-to region; the landing passes region.default.
+async function getJSON(url, rid = region.current) {
   const [path, query] = url.split("?");
-  if (path === "/api/ablation") return cached("/data/ablation.json");
-  if (path === "/api/methodology") return cached("/data/methodology.json");
-  if (path === "/api/dates") return cached("/data/risk/index.json");
-  if (path === "/api/risk") return staticRisk(new URLSearchParams(query).get("date") || "");
+  const params = new URLSearchParams(query);
+  if (!STATIC) {
+    if (rid) params.set("region", rid);
+    return fetchJSON(params.size ? `${path}?${params}` : path);
+  }
+  const base = rid ? `/data/${rid}` : "/data";
+  if (path === "/api/ablation") return cached(`${base}/ablation.json`);
+  if (path === "/api/methodology") return cached(`${base}/methodology.json`);
+  if (path === "/api/dates") return cached(`${base}/risk/index.json`);
+  if (path === "/api/risk") return staticRisk(base, params.get("date") || "");
   throw new Error(`No static file for ${path}`);
 }
+
+// A season that wraps the new year (Odisha's Nov-Jun) reads "2020–21"; one inside a year, "2024".
+const seasonLabel = (r) => {
+  const a = r.start.slice(0, 4), b = r.end.slice(0, 4);
+  return a === b ? String(r.season) : `${a}–${b.slice(2)}`;
+};
 
 function showError(target, err) {
   target.replaceChildren(el("p", { class: "status error" }, `Could not load: ${err.message}`));
@@ -85,6 +112,7 @@ function route() {
   document.body.classList.toggle("on-landing", key === "about");
   document.querySelectorAll(".topbar .links a").forEach((a) =>
     a.classList.toggle("active", a.getAttribute("href") === `#${key}`));
+  $("region-switch").hidden = key === "about" || region.list.length < 2;
   if (!loaded[key]) {
     loaded[key] = true;
     ({ about: initAbout, map: initMap, ablation: initAblation,
@@ -95,41 +123,103 @@ function route() {
 }
 window.addEventListener("hashchange", route);
 
+// The switch: a region change re-loads whichever app screen is open, and the others on visit.
+function initRegionSwitch() {
+  const box = $("region-switch");
+  box.replaceChildren(...region.list.map((r) => {
+    const b = el("button", { type: "button", "data-region": r.id }, r.name);
+    b.addEventListener("click", () => setRegion(r.id));
+    return b;
+  }));
+  markRegion();
+}
+
+function markRegion() {
+  $("region-switch").querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.region === region.current)));
+  fill("region", regionName(region.current));
+  const note = (region.list.find((r) => r.id === region.current) || {}).note || "";
+  document.querySelectorAll(".region-note").forEach((n) => { n.textContent = note; n.hidden = !note; });
+}
+
+function setRegion(id) {
+  if (id === region.current) return;
+  region.current = id;
+  markRegion();
+  for (const key of ["map", "ablation", "methodology"]) loaded[key] = false;
+  const [screen] = (location.hash || "#about").slice(1).split("?");
+  // Keep the region in the link (shareable); a map date from the other region would not apply.
+  history.replaceState(null, "", `#${screen}?region=${id}`);
+  route();
+}
+
 // ---- 0. about: result at a glance (computed from the real results, never typed in) ------
-const signed = (x) => `${x >= 0 ? "+" : ""}${fmt(x)}`;
+// Every region the site serves is shown side by side: the finding holding in more than one
+// state is the point, so the landing page leads with all of them, not just the default.
+
+// A lift below 0.001 would print as "+0.000"; show it to four places instead.
+const fmtLift = (x) => fmt(x, x !== 0 && Math.abs(x) < 0.001 ? 4 : 3);
+const signed = (x) => `${x >= 0 ? "+" : ""}${fmtLift(x)}`;
 // Seasons with a lift at the precision shown (3 dp): +0.0003 is not a lift anyone could see.
 const positiveSeasons = (xs) => xs.filter((x) => Number(x.toFixed(3)) > 0).length;
+const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+               "eleven", "twelve"];
+const word = (n) => WORDS[n] || String(n);
+const cap = (t) => `${t[0].toUpperCase()}${t.slice(1)}`;
+const andList = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
+const nf = (x) => Number(x).toLocaleString("en-GB");
+const fill = (key, text) => document.querySelectorAll(`[data-fill="${key}"]`)
+  .forEach((n) => { n.textContent = text; });
+
+// Each region's results, fetched once and settled, so one missing region hides only itself.
+async function allRegions(fetchOne) {
+  const out = await Promise.allSettled(region.list.map((r) => fetchOne(r.id)));
+  return region.list.map((r, i) => ({ ...r, ...(out[i].status === "fulfilled" ? out[i].value : {}),
+                                      ok: out[i].status === "fulfilled" }));
+}
+
+// One sentence per region: what human proximity did, read from its interval.
+function regionVerdict(r) {
+  const [lo] = r.human.delta_pr_auc_ci, h = r.human.delta_pr_auc, w = r.weather.delta_pr_auc;
+  if (h > w && lo > 0) return { yes: true, text: `in ${r.name} human proximity added ${(h / w).toFixed(1)} times the lift of weather` };
+  if (lo <= 0) return { yes: false, text: `in ${r.name} their lift could not be told apart from zero` };
+  return { yes: false, text: `in ${r.name} weather added about ${Math.round(w / h)} times more than roads, villages and fields did` };
+}
 
 async function initAbout() {
   fillCopy();
   initMoments();
   initReveal();
-  let a;
-  try { a = await getJSON("/api/ablation"); } catch (e) {
+  const regions = (await allRegions(async (rid) => {
+    const [a, d] = await Promise.all([getJSON("/api/ablation", rid), getJSON("/api/dates", rid)]);
+    const cmp = (name) => a.comparisons.find((c) => c.name === name);
+    return { a, seasons: d.ranges.map((r) => r.season), human: cmp("human_vs_fuel"),
+             weather: cmp("weather_lift"), fwi: cmp("full_model_vs_fwi") };
+  })).filter((r) => r.ok);
+  if (!regions.length) {
     $("facts").replaceChildren(el("p", { class: "status" }, "Results have not been built for this run yet."));
     initBulletin();
     return;
   }
-  const cmp = (name) => a.comparisons.find((c) => c.name === name);
-  const human = cmp("human_vs_fuel"), weather = cmp("weather_lift"), fwi = cmp("full_model_vs_fwi");
-  const h = human.delta_pr_auc, w = weather.delta_pr_auc;
-  const seasons = Object.values(human.delta_pr_auc_per_season);
-  const up = positiveSeasons(seasons);
-  const fact = (n, label) => el("div", { class: "fact reveal" },
+  const fact = (n, label) => el("div", { class: "fact" },
     el("span", { class: "fact-n" }, n), el("span", { class: "fact-l" }, label));
-  $("facts").replaceChildren(
-    fact(signed(w), `PR-AUC added by weather (95% CI ${ci(weather.delta_pr_auc_ci)})`),
-    fact(signed(h), `added by roads, villages and fields (95% CI ${ci(human.delta_pr_auc_ci)})`),
-    fact(`${up} of ${seasons.length}`, "seasons in which the human-proximity lift was positive"),
-    fact(signed(fwi.delta_pr_auc), "the full model over the operational Fire Weather Index"));
-  $("verdict").textContent = h <= 0
-    ? "The answer is no: human-proximity features added no lift on this backtest."
-    : h > w
-      ? `The answer is yes: human proximity added ${(h / w).toFixed(1)} times the lift of weather.`
-      : `The answer is no. Weather added about ${Math.round(w / h)} times more than roads, villages and fields did; fire history and the weather carry tomorrow.`;
+  $("facts").replaceChildren(...regions.map((r) => el("div", { class: "fact-state reveal" },
+    el("h3", {}, r.name, el("small", {},
+      `${word(r.seasons.length)} test seasons, ${r.seasons[0]}–${r.seasons.at(-1)}`)),
+    el("div", { class: "fact-row" },
+      fact(signed(r.weather.delta_pr_auc), `PR-AUC added by weather (95% CI ${ci(r.weather.delta_pr_auc_ci)})`),
+      fact(signed(r.human.delta_pr_auc), `added by roads, villages and fields (95% CI ${ci(r.human.delta_pr_auc_ci)})`),
+      fact(signed(r.fwi.delta_pr_auc), "the full model over the operational Fire Weather Index")))));
+  const verdicts = regions.map(regionVerdict);
+  const all = regions.length > 1 ? (regions.length === 2 ? "in both states" : "in every state") : "";
+  const head = verdicts.every((v) => !v.yes) ? `The answer is no${all ? `, ${all}` : ""}.`
+    : verdicts.every((v) => v.yes) ? `The answer is yes${all ? `, ${all}` : ""}.`
+      : "The answer differs by state.";
+  $("verdict").textContent = `${head} ${cap(verdicts.map((v) => v.text).join("; "))}. ` +
+    "Fire history and the weather carry tomorrow.";
 
-  // The ledger: each stage's PR-AUC, aligned on the decimal point.
-  const byStage = Object.fromEntries(a.stages.map((s) => [s.stage, s.mean.pr_auc]));
+  // The ledger: each stage's PR-AUC, one column per state.
+  const byStage = regions.map((r) => Object.fromEntries(r.a.stages.map((s) => [s.stage, s.mean.pr_auc])));
   const rows = [
     ["fwi", "The Fire Weather Index as a rule", "the operational dryness rating", "dim"],
     ["1", "Burning today, burning tomorrow", "the persistence rule", "dim"],
@@ -138,43 +228,52 @@ async function initAbout() {
     ["4a", "Add fuel and terrain", "forest cover, slope, elevation", ""],
     ["4b", "Add human proximity", "roads, settlements, cropland", ""],
   ];
-  $("ledger").replaceChildren(...rows.filter(([k]) => byStage[k] != null).map(([k, title, note, cls], i) => {
-    const [whole, dec] = Number(byStage[k]).toFixed(3).split(".");
-    return el("div", { class: `lrow reveal ${cls}`, style: `--d:${i * 70}ms` },
-      el("span", { class: "whole" }, whole), el("span", { class: "dec" }, `.${dec}`),
-      el("span", { class: "cap" }, title, el("small", {}, note)));
-  }));
+  const ledger = $("ledger");
+  ledger.style.setProperty("--n", regions.length);
+  ledger.replaceChildren(
+    el("div", { class: "lrow lhead" }, el("span", { class: "cap" }),
+      ...regions.map((r) => el("span", { class: "v" }, r.name))),
+    ...rows.filter(([k]) => byStage.some((b) => b[k] != null)).map(([k, title, note, cls], i) =>
+      el("div", { class: `lrow reveal ${cls}`, style: `--d:${i * 70}ms` },
+        el("span", { class: "cap" }, title, el("small", {}, note)),
+        ...byStage.map((b) => el("span", { class: "v" }, b[k] == null ? "–" : fmt(b[k]))))));
   initReveal();
   initBulletin();
 }
 
-// ---- counts in the page copy, filled from the same files as everything else -------------
-const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
-const fill = (key, text) => document.querySelectorAll(`[data-fill="${key}"]`)
-  .forEach((n) => { n.textContent = text; });
-
+// ---- counts in the page copy, summed over every region, from the same files -------------
 async function fillCopy() {
-  try {
-    const [index, m] = await Promise.all([getJSON("/api/dates"), getJSON("/api/methodology")]);
-    const seasons = index.ranges.map((r) => r.season);
-    const n = WORDS[seasons.length] || String(seasons.length);
-    fill("seasons-n", n);
-    fill("seasons-cap", `${n[0].toUpperCase()}${n.slice(1)} fire seasons, ${seasons[0]} to ${seasons.at(-1)}`);
-    const steps = Object.values(m.label?.filter_steps || {});
-    const nf = (x) => Number(x).toLocaleString("en-GB");
-    if (steps.length) { fill("raw", nf(steps[0])); fill("kept", nf(steps.at(-1))); }
-    if (m.grid?.cells_scored) fill("cells", nf(m.grid.cells_scored));
-    const fire = (m.data_sources || []).find((d) => /FIRMS/.test(d.name));
-    const weather = (m.data_sources || []).find((d) => /ERA5/.test(d.name));
-    if (fire?.window) fill("window", `${fire.window.start.slice(0, 4)} to ${fire.window.end.slice(0, 4)}`);
-    if (fire?.window && weather?.window) {   // the panel runs from the window start to the last weather day
-      fill("days", nf(Math.round((Date.parse(weather.window.end) - Date.parse(fire.window.start)) / 864e5) + 1));
-    }
-  } catch (e) { /* the written defaults stay */ }
+  const regions = (await allRegions(async (rid) => {
+    const [index, m] = await Promise.all([getJSON("/api/dates", rid), getJSON("/api/methodology", rid)]);
+    return { index, m };
+  })).filter((r) => r.ok);
+  if (!regions.length) return;   // the written defaults stay
+  const names = regions.map((r) => r.name);
+  fill("states", andList(names));
+  fill("states-n", word(regions.length));
+  const counts = regions.map((r) => r.index.ranges.length);
+  fill("seasons-cap", cap(regions.map((r, i) =>
+    `${word(counts[i])}${i === 0 ? " fire" : ""} seasons in ${r.name}`).reduce((t, x, i, xs) =>
+    (i === 0 ? x : `${t}${i === xs.length - 1 ? " and " : ", "}${x}`), "")));
+  fill("seasons-total", word(counts.reduce((a, b) => a + b, 0)));
+  fill("seasons-n", word(counts[0]));
+  const sum = (f) => regions.reduce((t, r) => t + (f(r.m) || 0), 0);
+  const first = (m) => Object.values(m.label?.filter_steps || {})[0];
+  const last = (m) => Object.values(m.label?.filter_steps || {}).at(-1);
+  if (sum(first)) { fill("raw", nf(sum(first))); fill("kept", nf(sum(last))); }
+  if (sum((m) => m.grid?.cells_scored)) fill("cells", nf(sum((m) => m.grid?.cells_scored)));
+  const windows = regions.map((r) => (r.m.data_sources || []).find((d) => /FIRMS/.test(d.name))?.window)
+    .filter(Boolean);
+  if (windows.length) {
+    const years = windows.flatMap((w) => [w.start, w.end].map((x) => Number(x.slice(0, 4))));
+    fill("window", `${Math.min(...years)} to ${Math.max(...years)}`);
+  }
 }
 
-// ---- the live inspection sheet: the real top 20 for any test day -----------------------
-const bulletin = { ranges: [], req: 0 };
+// ---- the live inspection sheet: the real top 20 for any test day, in any state ----------
+// The day each state's sheet opens on: a peak-season day; any test day works.
+const SHEET_DAY = { uttarakhand: "2024-04-20", odisha: "2024-03-29" };
+const bulletin = { ranges: [], req: 0, region: null };
 const centroid = (geom) => {
   const ring = geom.coordinates[0];
   return [ring.reduce((s, p) => s + p[1], 0) / ring.length, ring.reduce((s, p) => s + p[0], 0) / ring.length];
@@ -185,31 +284,58 @@ const shiftDay = (iso, n) => {
   const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
+const rangeDays = (ranges) => ranges.reduce((s, r) =>
+  s + Math.round((Date.parse(r.end) - Date.parse(r.start)) / 864e5) + 1, 0);
+const sheetValid = (iso) => bulletin.ranges.some((r) => iso >= r.start && iso <= r.end);
 
 async function initBulletin() {
   const inp = $("b-date");
-  let index;
-  try { index = await getJSON("/api/dates"); } catch (e) {
-    $("sheet-date").textContent = "The risk files have not been built yet.";
-    return;
+  if (inp.dataset.ready) return;
+  inp.dataset.ready = "1";
+  const box = $("sheet-switch");
+  if (region.list.length > 1) {
+    box.replaceChildren(...region.list.map((r) => {
+      const b = el("button", { type: "button", "data-region": r.id }, r.name);
+      b.addEventListener("click", () => setSheetRegion(r.id));
+      return b;
+    }));
+    box.hidden = false;
   }
-  bulletin.ranges = index.ranges;
-  const days = index.ranges.reduce((s, r) =>
-    s + Math.round((Date.parse(r.end) - Date.parse(r.start)) / 864e5) + 1, 0);
-  $("n-days").textContent = days.toLocaleString("en-GB");
-  inp.min = index.ranges[0].start;
-  inp.max = index.ranges[index.ranges.length - 1].end;
-  inp.value = "2024-04-20";  // a peak-season day; any test day works
-  const valid = (iso) => bulletin.ranges.some((r) => iso >= r.start && iso <= r.end);
+  allRegions((rid) => getJSON("/api/dates", rid)).then((rs) => {
+    const days = rs.filter((r) => r.ok).reduce((t, r) => t + rangeDays(r.ranges), 0);
+    if (days) $("n-days").textContent = nf(days);
+  });
   const step = (n) => {
     let d = shiftDay(inp.value, n);
     // jump the gap between seasons
-    for (let i = 0; i < 400 && !valid(d) && d >= inp.min && d <= inp.max; i++) d = shiftDay(d, n);
-    if (valid(d)) { inp.value = d; loadSheet(); }
+    for (let i = 0; i < 400 && !sheetValid(d) && d >= inp.min && d <= inp.max; i++) d = shiftDay(d, n);
+    if (sheetValid(d)) { inp.value = d; loadSheet(); }
   };
   $("b-prev").addEventListener("click", () => step(-1));
   $("b-next").addEventListener("click", () => step(1));
-  inp.addEventListener("change", () => { if (valid(inp.value)) loadSheet(); });
+  inp.addEventListener("change", () => { if (sheetValid(inp.value)) loadSheet(); });
+  setSheetRegion(region.default);
+}
+
+async function setSheetRegion(rid) {
+  if (rid === bulletin.region) return;
+  bulletin.region = rid;
+  $("sheet-switch").querySelectorAll("button").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.region === rid)));
+  $("sheet-region").textContent = regionName(rid);
+  let index;
+  try { index = await getJSON("/api/dates", rid); } catch (e) {
+    $("sheet-date").textContent = "The risk files have not been built yet.";
+    return;
+  }
+  if (rid !== bulletin.region) return;
+  bulletin.ranges = index.ranges;
+  const inp = $("b-date");
+  inp.min = index.ranges[0].start;
+  inp.max = index.ranges.at(-1).end;
+  const last = index.ranges.at(-1);
+  const want = SHEET_DAY[rid];
+  inp.value = want && sheetValid(want) ? want : shiftDay(last.start, Math.round(rangeDays([last]) * 0.6));
   loadSheet();
 }
 
@@ -217,7 +343,7 @@ async function loadSheet() {
   const iso = $("b-date").value, ticket = ++bulletin.req;
   $("sheet-date").textContent = `for ${longDate(shiftDay(iso, 1))}`;
   let data;
-  try { data = await getJSON(`/api/risk?date=${iso}`); } catch (e) {
+  try { data = await getJSON(`/api/risk?date=${iso}`, bulletin.region); } catch (e) {
     if (ticket === bulletin.req) $("sheet-foot").textContent = e.message;
     return;
   }
@@ -292,13 +418,9 @@ function rankClass(rank, n, k) {
 const classLabels = (k) => ["Lower half", "Upper half", "Top 25%", "Top 10%", "Top 5%", "Top 2%",
                             `Top ${k} cells`];
 
-async function initMap() {
-  const status = $("map-status");
-  let index;
-  try { index = await getJSON("/api/dates"); } catch (e) { showError(status.parentElement, e); return; }
-  mapState.ranges = index.ranges;
-  mapState.k = index.k || 20;
-
+// Built once; a region switch only reloads the dates and the cells (setupMap is idempotent).
+function setupMap() {
+  if (mapState.map) return;
   mapState.map = L.map("map-canvas", { zoomSnap: 0.25 }).setView([30.1, 79.2], 7);
   // A quiet gray basemap (no API key needed) so the data, not the labels, carries the picture;
   // place names go in a pane above the choropleth so they stay readable.
@@ -314,23 +436,42 @@ async function initMap() {
     .addTo(mapState.map);
 
   const seasonSel = $("season"), dateInp = $("date");
-  for (const r of mapState.ranges) seasonSel.append(el("option", { value: r.season }, String(r.season)));
-  const setRange = () => {
-    const r = mapState.ranges.find((x) => String(x.season) === seasonSel.value);
-    dateInp.min = r.start; dateInp.max = r.end;   // only dates with a prediction are selectable
-    if (!dateInp.value || dateInp.value < r.start || dateInp.value > r.end) {
-      dateInp.value = r.start;
-    }
-  };
   seasonSel.addEventListener("change", () => { setRange(); loadDate(); });
   dateInp.addEventListener("change", loadDate);
   $("show-fires").addEventListener("change", draw);
-  // Shareable deep link, e.g. #map?date=2023-04-12&fires=1
+}
+
+function setRange() {
+  const seasonSel = $("season"), dateInp = $("date");
+  const r = mapState.ranges.find((x) => String(x.season) === seasonSel.value);
+  dateInp.min = r.start; dateInp.max = r.end;   // only dates with a prediction are selectable
+  if (!dateInp.value || dateInp.value < r.start || dateInp.value > r.end) {
+    dateInp.value = r.start;
+  }
+}
+
+async function initMap() {
+  const status = $("map-status");
+  let index;
+  try { index = await getJSON("/api/dates"); } catch (e) { showError(status.parentElement, e); return; }
+  mapState.ranges = index.ranges;
+  mapState.k = index.k || 20;
+  setupMap();
+  mapState.map.invalidateSize();
+  // A new region: drop the last one's cells and zoom to the new state on the first draw.
+  mapState.layer?.remove(); mapState.fires?.remove();
+  mapState.layer = mapState.fires = mapState.data = null;
+  mapState.fitted = false;
+
+  const seasonSel = $("season"), dateInp = $("date");
+  seasonSel.replaceChildren(...mapState.ranges.map((r) =>
+    el("option", { value: r.season }, seasonLabel(r))));
+  // Shareable deep link, e.g. #map?region=odisha&date=2023-04-12&fires=1
   const want = new URLSearchParams(location.hash.split("?")[1] || "");
   const wanted = mapState.ranges.find((r) => want.get("date") >= r.start && want.get("date") <= r.end);
   seasonSel.value = (wanted || mapState.ranges[mapState.ranges.length - 1]).season;
+  dateInp.value = wanted ? want.get("date") : "";
   setRange();
-  if (wanted) dateInp.value = want.get("date");
   $("show-fires").checked = want.get("fires") === "1";
   loadDate();
 }
@@ -435,14 +576,19 @@ const STAGE_NAMES = { "1": "Persistence", "fwi": "Fire Weather Index (operationa
 
 async function initAblation() {
   const body = $("ablation-body");
-  let a;
+  let a, labels = {};
   try { a = await getJSON("/api/ablation"); } catch (e) { showError(body, e); return; }
+  try {
+    const index = await getJSON("/api/dates");
+    labels = Object.fromEntries(index.ranges.map((r) => [r.season, seasonLabel(r)]));
+  } catch (e) { /* plain season numbers */ }
+  const label = (season) => labels[season] || String(season);
 
   const rows = a.stages.map((s) => {
     const m = s.mean;
     const seasons = el("details", {}, el("summary", {}, "per season"),
       ...s.per_season.map((r) => el("div", { class: "ci" },
-        `${r.season}: PR-AUC ${fmt(r.pr_auc)} (${ci(r.pr_auc_ci)}) · ` +
+        `${label(r.season)}: PR-AUC ${fmt(r.pr_auc)} (${ci(r.pr_auc_ci)}) · ` +
         `precision@${a.k} ${fmt(r.precision_at_k)} · base rate ${fmt(r.base_rate, 4)} · ` +
         `${r.n_positive} positives`)));
     return el("tr", {},
@@ -460,29 +606,29 @@ async function initAblation() {
     el("tbody", {}, ...rows));
 
   const parts = [el("p", { class: "status" },
-    `Mean over test seasons ${a.test_seasons.join(", ")}; intervals are ${a.bootstrap.block_days}-day ` +
+    `Mean over test seasons ${a.test_seasons.map(label).join(", ")}; intervals are ${a.bootstrap.block_days}-day ` +
     `block bootstrap. Top-k is scored per day.`), table];
 
   const human = a.comparisons.find((c) => c.name === "human_vs_fuel");
   if (human) {
     const d = human.delta_pr_auc, v = human.pr_auc_verdict;
     const text = v === "no detectable difference"
-      ? `Adding human-proximity features: no detectable lift (PR-AUC ${d >= 0 ? "+" : ""}${fmt(d)}, ` +
+      ? `Adding human-proximity features: no detectable lift (PR-AUC ${signed(d)}, ` +
         `95% CI ${ci(human.delta_pr_auc_ci)} spans zero).`
-      : `Adding human-proximity features changed PR-AUC by ${d >= 0 ? "+" : ""}${fmt(d)} ` +
+      : `Adding human-proximity features changed PR-AUC by ${signed(d)} ` +
         `(95% CI ${ci(human.delta_pr_auc_ci)}).`;
     const weather = a.comparisons.find((c) => c.name === "weather_lift");
     const perSeason = Object.values(human.delta_pr_auc_per_season);
     const positive = positiveSeasons(perSeason);
     const context = (weather ? ` For comparison, adding weather changed it by ` +
-      `${weather.delta_pr_auc >= 0 ? "+" : ""}${fmt(weather.delta_pr_auc)}.` : "") +
+      `${signed(weather.delta_pr_auc)}.` : "") +
       ` The human-proximity change was positive in ${positive} of ${perSeason.length} test seasons.`;
     parts.push(el("p", { class: "headline" }, text + context));
   }
 
   const cmpRows = a.comparisons.map((c) => el("tr", {},
     el("td", {}, COMPARISON_LABELS[c.name] || c.name.replaceAll("_", " ")),
-    el("td", { class: "num" }, `${c.delta_pr_auc >= 0 ? "+" : ""}${fmt(c.delta_pr_auc)}`),
+    el("td", { class: "num" }, `${signed(c.delta_pr_auc)}`),
     el("td", { class: "num" }, ci(c.delta_pr_auc_ci)),
     el("td", {}, VERDICTS[c.pr_auc_verdict] || c.pr_auc_verdict)));
   parts.push(el("h2", {}, "Stage-to-stage differences (change in PR-AUC)"), el("p", { class: "status" },
@@ -530,7 +676,7 @@ function spatialSection(a) {
   if (human) {
     out.push(el("p", { class: "headline" },
       `On unseen places, adding human-proximity features changes PR-AUC by ` +
-      `${human.delta_pr_auc >= 0 ? "+" : ""}${fmt(human.delta_pr_auc)} ` +
+      `${signed(human.delta_pr_auc)} ` +
       `(95% CI ${ci(human.delta_pr_auc_ci)}).`));
   }
   return out;
@@ -607,4 +753,4 @@ async function initMethodology() {
     el("ul", {}, ...m.known_limitations.map((l) => el("li", {}, l))));
 }
 
-route();
+loadRegions().then(() => { initRegionSwitch(); route(); });
